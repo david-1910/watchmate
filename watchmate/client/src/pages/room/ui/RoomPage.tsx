@@ -15,9 +15,16 @@ type User = {
   userName: string
 }
 
+type Reaction = {
+  id: number
+  userName: string
+  emoji: string
+}
+
 function RoomPage() {
   const { id } = useParams()
   const [users, setUsers] = useState<User[]>([])
+  const [reactions, setReactions] = useState<Reaction[]>([])
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [countdown, setCountdown] = useState<number | null>(null)
@@ -30,15 +37,12 @@ function RoomPage() {
     const socket = connectSocket()
 
     socket.emit('join-room', { roomId: id, userName })
-
     socket.on('chat-message', (message: Message) => {
       setMessages((prev) => [...prev, message])
     })
-
     socket.on('user-joined', (data: { userId: string; userName: string }) => {
       console.log('Присоединился:', data.userName)
     })
-
     socket.on('countdown', (count: number) => {
       setCountdown(count)
       if (count === 0) {
@@ -49,6 +53,22 @@ function RoomPage() {
     socket.on('users-update', (usersList: User[]) => {
       setUsers(usersList)
     })
+
+    socket.on(
+      'reaction',
+      (data: { userId: string; userName: string; emoji: string }) => {
+        const newReaction: Reaction = {
+          id: Date.now(),
+          userName: data.userName,
+          emoji: data.emoji,
+        }
+        setReactions((prev) => [...prev, newReaction])
+
+        setTimeout(() => {
+          setReactions((prev) => prev.filter((r) => r.id !== newReaction.id))
+        }, 2000)
+      }
+    )
 
     return () => {
       disconnectSocket()
@@ -80,7 +100,12 @@ function RoomPage() {
     setJoined(true)
   }
 
-  // Экран ввода имени
+  const sendReaction = (emoji: string) => {
+    if (!id) return
+    const socket = connectSocket()
+    socket.emit('reaction', { roomId: id, emoji })
+  }
+
   if (!joined) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center">
@@ -113,9 +138,23 @@ function RoomPage() {
       <main className="flex gap-8">
         <div className="flex-1">
           <div
-            className="bg-gray-800 rounded-lg aspect-video flex flex-col items-center justify-center
-  relative"
+            className="bg-gray-800 rounded-lg aspect-video flex flex-col items-center justify-center relative
+  overflow-hidden"
           >
+            {/* Всплывающие реакции */}
+            {reactions.map((r) => (
+              <div
+                key={r.id}
+                className="absolute animate-bounce text-6xl"
+                style={{
+                  left: `${Math.random() * 80 + 10}%`,
+                  top: `${Math.random() * 60 + 20}%`,
+                }}
+              >
+                {r.emoji}
+              </div>
+            ))}
+
             {countdown !== null ? (
               <div className="text-9xl font-bold text-purple-500">
                 {countdown === 0 ? '▶️' : countdown}
@@ -126,6 +165,18 @@ function RoomPage() {
                 <Button onClick={startCountdown}>Старт 3-2-1</Button>
               </>
             )}
+          </div>
+          {/* Панель реакций */}
+          <div className="flex justify-center gap-4 mt-4">
+            {['👍', '👎', '😁', '😒', '🔥', '❤️', '😍', '🤦‍♂️' ].map((emoji) => (
+              <button
+                key={emoji}
+                onClick={() => sendReaction(emoji)}
+                className="text-3xl hover:scale-125 transition-transform"
+              >
+                {emoji}
+              </button>
+            ))}
           </div>
         </div>
 

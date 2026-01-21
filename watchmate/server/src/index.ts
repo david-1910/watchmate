@@ -16,13 +16,18 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
-const rooms = new Map<string, { id: string; createdAt: Date }>();
+const rooms = new Map<string, { id: string; createdAt: Date; hostToken: string }>();
 const userNames = new Map<string, string>();
 const userRooms = new Map<string, string>();
 const readyUsers = new Map<string, Set<string>>();
+const roomHosts = new Map<string, string>();
 
 function generateRoomId(): string {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+function generateHostToken(): string {
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 }
 
 function getRoomUsers(roomId: string): { userId: string; userName: string }[] {
@@ -44,9 +49,10 @@ function getRoomReadyUsers(roomId: string): string[] {
 
 app.post("/rooms", (req, res) => {
     const id = generateRoomId();
-    rooms.set(id, { id, createdAt: new Date() });
+    const hostToken = generateHostToken();
+    rooms.set(id, { id, createdAt: new Date(), hostToken });
     console.log(`Комната создана: ${id}`);
-    res.json({ id });
+    res.json({ id, hostToken });
 });
 
 app.get("/rooms/:id", (req, res) => {
@@ -62,13 +68,27 @@ app.get("/rooms/:id", (req, res) => {
 io.on("connection", (socket) => {
     console.log("Пользователь подключился:", socket.id);
 
-    socket.on("join-room", (data: { roomId: string; userName: string }) => {
+    socket.on("join-room", (data: { roomId: string; userName: string; hostToken?: string }) => {
         socket.join(data.roomId);
         userNames.set(socket.id, data.userName);
         userRooms.set(socket.id, data.roomId);
         console.log(`${data.userName} вошёл в комнату ${data.roomId}`);
 
+        const room = rooms.get(data.roomId);
+
+        // Если передан правильный токен хоста - делаем этого пользователя хостом
+        if (data.hostToken && room && room.hostToken === data.hostToken) {
+            roomHosts.set(data.roomId, socket.id);
+            console.log(`${data.userName} стал хостом комнаты ${data.roomId} (создатель)`);
+        }
+        // Если хоста нет и токен не передан - первый становится хостом (fallback)
+        else if (!roomHosts.has(data.roomId)) {
+            roomHosts.set(data.roomId, socket.id);
+            console.log(`${data.userName} стал хостом комнаты ${data.roomId} (первый)`);
+        }
+
         io.to(data.roomId).emit("users-update", getRoomUsers(data.roomId));
+        io.to(data.roomId).emit("host-update", roomHosts.get(data.roomId));
 
         socket.to(data.roomId).emit("user-joined", {
             userId: socket.id,
@@ -169,6 +189,16 @@ io.on("connection", (socket) => {
                 readyUsers: getRoomReadyUsers(roomId),
                 allReady: false,
             });
+        }
+        if (roomId && roomHosts.get(roomId) === socket.id) {
+            const remainingUsers = getRoomUsers(roomId);
+            if (remainingUsers.length > 0) {
+                roomHosts.set(roomId, remainingUsers[0].userId);
+                io.to(roomId).emit("host-update", remainingUsers[0].userId);
+                console.log(`Новый хост: ${remainingUsers[0].userName}`);
+            } else {
+                roomHosts.delete(roomId);
+            }
         }
         if (roomId) {
             io.to(roomId).emit("users-update", getRoomUsers(roomId));

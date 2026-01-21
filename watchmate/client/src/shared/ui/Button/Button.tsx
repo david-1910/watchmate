@@ -6,13 +6,13 @@ type ButtonProps = {
 
 function Button({ variant = 'primary', children, onClick }: ButtonProps) {
   const styles = {
-    primary: 'bg-purple-600 text-white hover:bg-purple-700',
-    secondary: 'bg-gray-700 text-white hover:bg-gray-600',
+    primary: 'glass-button',
+    secondary: 'glass-button-secondary',
   }
 
   return (
     <button
-      className={`px-6 py-3 rounded-lg font-semibold ${styles[variant]}`}
+      className={`px-6 py-3 rounded-xl font-semibold text-white ${styles[variant]}`}
       onClick={onClick}
     >
       {children}

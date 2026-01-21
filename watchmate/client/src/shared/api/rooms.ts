@@ -1,6 +1,6 @@
 const API_URL = 'http://localhost:3001'
 
-export async function createRoom(): Promise<{ id: string }> {
+export async function createRoom(): Promise<{ id: string; hostToken: string }> {
   const response = await fetch(`${API_URL}/rooms`, {
     method: 'POST',
   })

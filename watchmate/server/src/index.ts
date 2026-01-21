@@ -19,6 +19,7 @@ app.use(express.json());
 const rooms = new Map<string, { id: string; createdAt: Date }>();
 const userNames = new Map<string, string>();
 const userRooms = new Map<string, string>();
+const readyUsers = new Map<string, Set<string>>();
 
 function generateRoomId(): string {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -35,6 +36,10 @@ function getRoomUsers(roomId: string): { userId: string; userName: string }[] {
         }
     });
     return users;
+}
+
+function getRoomReadyUsers(roomId: string): string[] {
+    return Array.from(readyUsers.get(roomId) || []);
 }
 
 app.post("/rooms", (req, res) => {
@@ -97,14 +102,60 @@ io.on("connection", (socket) => {
         }, 3000);
     });
 
-    socket.on("reaction", (data: {roomId: string; emoji: string }) => {
-      const userName = userNames.get(socket.id) ||"Аноним";
-      io.to(data.roomId).emit("reaction", {
-        userId: socket.id,
-        userName: userName,
-        emoji: data.emoji,
-      })
-    })
+    socket.on("reaction", (data: { roomId: string; emoji: string }) => {
+        const userName = userNames.get(socket.id) || "Аноним";
+        io.to(data.roomId).emit("reaction", {
+            userId: socket.id,
+            userName: userName,
+            emoji: data.emoji,
+        });
+    });
+
+    socket.on("share-video", (data: { roomId: string; videoUrl: string }) => {
+        io.to(data.roomId).emit("video-update", data.videoUrl);
+    });
+
+    socket.on("clear-video", (roomId: string) => {
+        io.to(roomId).emit("video-update", "");
+    });
+
+    socket.on("toggle-ready", (roomId: string) => {
+        if (!readyUsers.has(roomId)) {
+            readyUsers.set(roomId, new Set());
+        }
+
+        const roomReady = readyUsers.get(roomId)!;
+
+        if (roomReady.has(socket.id)) {
+            roomReady.delete(socket.id);
+        } else {
+            roomReady.add(socket.id);
+        }
+
+        const readyList = getRoomReadyUsers(roomId);
+        const totalUsers = getRoomUsers(roomId).length;
+
+        io.to(roomId).emit("ready-update", {
+            readyUsers: readyList,
+            allReady: readyList.length === totalUsers && totalUsers > 0,
+        });
+
+        // Автостарт когда все готовы
+        if (readyList.length === totalUsers && totalUsers > 0) {
+            io.to(roomId).emit("countdown", 3);
+            setTimeout(() => io.to(roomId).emit("countdown", 2), 1000);
+            setTimeout(() => io.to(roomId).emit("countdown", 1), 2000);
+            setTimeout(() => {
+                io.to(roomId).emit("countdown", 0);
+                // Сбросить готовность после старта
+                readyUsers.set(roomId, new Set());
+                io.to(roomId).emit("ready-update", {
+                    readyUsers: [],
+                    allReady: false,
+                });
+            }, 3000);
+        }
+    });
 
     socket.on("disconnect", () => {
         const userName = userNames.get(socket.id);
@@ -112,6 +163,13 @@ io.on("connection", (socket) => {
         console.log(`${userName || socket.id} отключился`);
         userNames.delete(socket.id);
         userRooms.delete(socket.id);
+        if (roomId && readyUsers.has(roomId)) {
+            readyUsers.get(roomId)!.delete(socket.id);
+            io.to(roomId).emit("ready-update", {
+                readyUsers: getRoomReadyUsers(roomId),
+                allReady: false,
+            });
+        }
         if (roomId) {
             io.to(roomId).emit("users-update", getRoomUsers(roomId));
         }

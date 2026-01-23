@@ -28,26 +28,35 @@ type Reaction = {
 function RoomPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+
+  // Проверяем имя из sessionStorage (установлено на главной)
+  const storedName = sessionStorage.getItem('userName')
+
   const [users, setUsers] = useState<User[]>([])
   const [reactions, setReactions] = useState<Reaction[]>([])
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [countdown, setCountdown] = useState<number | null>(null)
-  const [userName, setUserName] = useState('')
-  const [joined, setJoined] = useState(false)
+  const [userName, setUserName] = useState(storedName || '')
+  const [joined, setJoined] = useState(!!storedName)
   const [inputUrl, setInputUrl] = useState('')
   const [videoUrl, setVideoUrl] = useState('')
   const [localVideo, setLocalVideo] = useState<string | null>(null)
+  const [localFileName, setLocalFileName] = useState<string | null>(null)
+  const [hostFileName, setHostFileName] = useState<string | null>(null)
   const [readyUsers, setReadyUsers] = useState<string[]>([])
   const [isPlaying, setIsPlaying] = useState(false)
   const [hostId, setHostId] = useState<string | null>(null)
   const [mySocketId, setMySocketId] = useState<string | null>(null)
   const [showExitModal, setShowExitModal] = useState(false)
+  const [sidebarTab, setSidebarTab] = useState<'chat' | 'users'>('chat')
+  const [sidebarVisible, setSidebarVisible] = useState(true)
 
   const isHost = mySocketId === hostId
 
   const handleExit = () => {
     disconnectSocket()
+    sessionStorage.removeItem('userName')
     navigate('/')
   }
 
@@ -122,6 +131,16 @@ function RoomPage() {
     socket.on('video-update', (url: string) => {
       setVideoUrl(url)
       setLocalVideo(null)
+      setLocalFileName(null)
+      setHostFileName(null)
+      setIsPlaying(false)
+    })
+
+    socket.on('local-file-update', (fileName: string | null) => {
+      setHostFileName(fileName)
+      if (fileName) {
+        setVideoUrl('')
+      }
       setIsPlaying(false)
     })
 
@@ -148,6 +167,9 @@ function RoomPage() {
     if (!id) return
     const socket = connectSocket()
     socket.emit('clear-video', id)
+    setLocalVideo(null)
+    setLocalFileName(null)
+    setHostFileName(null)
     setIsPlaying(false)
   }
 
@@ -172,14 +194,18 @@ function RoomPage() {
     socket.emit('start-countdown', id)
   }
 
-  const copyLink = () => {
-    const url = window.location.href
-    navigator.clipboard.writeText(url)
-    alert('Ссылка скопирована!')
+  const [copied, setCopied] = useState(false)
+
+  const copyRoomCode = () => {
+    if (!id) return
+    navigator.clipboard.writeText(id)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   const handleJoin = () => {
     if (!userName.trim()) return
+    sessionStorage.setItem('userName', userName.trim())
     setJoined(true)
   }
 
@@ -202,16 +228,33 @@ function RoomPage() {
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
+    if (file && id) {
       const url = URL.createObjectURL(file)
       setLocalVideo(url)
+      setLocalFileName(file.name)
       setVideoUrl('')
+      // Только хост сообщает другим пользователям имя файла
+      if (isHost) {
+        const socket = connectSocket()
+        socket.emit('share-local-file', { roomId: id, fileName: file.name })
+      }
     }
   }
 
   if (!joined) {
     return (
-      <div className="min-h-screen bg-animated-gradient text-white flex flex-col items-center justify-center">
+      <div className="min-h-screen bg-animated-gradient text-white flex flex-col items-center justify-center relative">
+        {/* Кнопка назад */}
+        <button
+          onClick={() => navigate('/')}
+          className="absolute top-6 left-6 flex items-center gap-2 glass px-4 py-2 rounded-xl text-gray-300 hover:text-white hover:bg-white/10 transition-all"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Назад
+        </button>
+
         <div className="glass-card rounded-3xl p-10 flex flex-col items-center">
           <img src="/logo-watchmate.png" alt="WatchMate" className="h-16 w-16 object-contain mb-3" />
           <h1 className="text-4xl font-bold mb-2 text-glow">WatchMate</h1>
@@ -236,23 +279,62 @@ function RoomPage() {
     <div className="h-screen bg-animated-gradient text-white p-6 flex flex-col overflow-hidden">
       <header className="glass rounded-2xl px-6 py-3 flex justify-between items-center mb-6 shrink-0">
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowExitModal(true)}
+            className="flex items-center justify-center w-10 h-10 rounded-xl glass hover:bg-white/10 transition-all"
+            title="Назад"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+          </button>
           <img src="/logo-watchmate.png" alt="WatchMate" className="h-10 w-10 object-contain" />
           <h1 className="text-2xl font-bold text-glow">WatchMate</h1>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-gray-300">Комната:</span>
-          <code className="glass px-3 py-1 rounded-lg font-mono">{id}</code>
-          <Button onClick={copyLink}>Копировать</Button>
+        <div className="flex items-center gap-4">
+          {/* Компактный список участников */}
+          <div className="hidden sm:flex items-center">
+            <div className="flex -space-x-2">
+              {users.slice(0, 3).map((user) => (
+                <div
+                  key={user.userId}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 border-gray-900 ${
+                    user.userId === hostId ? 'bg-yellow-500/50' : 'bg-purple-500/50'
+                  }`}
+                  title={user.userName}
+                >
+                  {user.userId === hostId ? '👑' : user.userName.charAt(0).toUpperCase()}
+                </div>
+              ))}
+              {users.length > 3 && (
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-gray-600 border-2 border-gray-900">
+                  +{users.length - 3}
+                </div>
+              )}
+            </div>
+          </div>
+
           <button
-            onClick={() => setShowExitModal(true)}
-            className="glass-button-secondary px-4 py-2 rounded-xl text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-all"
+            onClick={copyRoomCode}
+            className="hidden md:flex items-center gap-2 glass px-3 py-2 rounded-xl hover:bg-white/10 transition-all group"
+            title="Нажмите чтобы скопировать"
           >
-            Выйти
+            <span className="text-gray-400 text-sm">Комната:</span>
+            <code className="font-mono text-sm text-white group-hover:text-purple-300 transition-colors">{id}</code>
+            {copied ? (
+              <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4 text-gray-400 group-hover:text-purple-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            )}
           </button>
         </div>
       </header>
 
-      <main className="flex gap-6 flex-1 min-h-0">
+      <main className="flex gap-4 flex-1 min-h-0">
         <div className="flex-1 flex flex-col min-h-0">
           <div
             className="glass-card rounded-2xl flex-1 flex flex-col items-center justify-center relative overflow-hidden"
@@ -285,10 +367,7 @@ function RoomPage() {
                 />
                 {isHost && (
                   <button
-                    onClick={() => {
-                      setLocalVideo(null)
-                      setIsPlaying(false)
-                    }}
+                    onClick={clearVideo}
                     className="absolute top-3 right-3 glass-button-secondary px-3 py-1 rounded-lg text-sm z-10 hover:bg-red-500/50"
                   >
                     ✕ Закрыть
@@ -349,6 +428,27 @@ function RoomPage() {
                   </div>
                 )}
               </>
+            ) : hostFileName && !isHost ? (
+              <div className="flex flex-col items-center gap-4 p-8">
+                <p className="text-gray-300 text-center">
+                  Хост загрузил локальный файл:
+                </p>
+                <code className="glass px-4 py-2 rounded-lg text-purple-300 text-sm max-w-md truncate">
+                  {hostFileName}
+                </code>
+                <p className="text-gray-400 text-sm text-center">
+                  Загрузите тот же файл для синхронного просмотра
+                </p>
+                <label className="glass-button px-5 py-3 rounded-xl cursor-pointer flex items-center gap-2">
+                  Загрузить файл
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                </label>
+              </div>
             ) : (
               <div className="flex flex-col items-center gap-4 p-8">
                 {isHost ? (
@@ -404,51 +504,137 @@ function RoomPage() {
           </div>
         </div>
 
-        <aside className="w-80 glass-card rounded-2xl p-5 flex flex-col min-h-0">
-          <h2 className="font-semibold mb-4 text-gray-200 shrink-0">Участники ({users.length})</h2>
-          <div className="flex flex-wrap gap-2 shrink-0">
-            {users.map((user) => (
-              <span
-                key={user.userId}
-                className={`px-3 py-1.5 rounded-lg text-sm transition-all ${
-                  readyUsers.includes(user.userId)
-                    ? 'bg-green-500/30 border border-green-500/50'
-                    : user.userId === hostId
-                    ? 'bg-yellow-500/30 border border-yellow-500/50'
-                    : 'glass'
-                }`}
-              >
-                {user.userId === hostId && '👑 '}
-                {readyUsers.includes(user.userId) && '✓ '}
-                {user.userName}
-              </span>
-            ))}
-          </div>
-          <h2 className="font-semibold mb-3 mt-6 text-gray-200 shrink-0">Чат</h2>
-          <div className="flex-1 overflow-y-auto space-y-2 min-h-0 mb-3">
-            {messages.map((msg, i) => (
-              <div key={i} className="glass rounded-xl p-3">
-                <span className="text-sm text-purple-400 font-semibold">
-                  {msg.userName}
-                </span>
-                <span className="text-xs text-gray-500 ml-2">
-                  ({msg.userId?.slice(0, 4)})
-                </span>
-                <p className="mt-1 text-gray-200">{msg.message}</p>
-              </div>
-            ))}
+        {/* Кнопка открытия сайдбара (когда скрыт) */}
+        <button
+          onClick={() => setSidebarVisible(true)}
+          className={`glass-card rounded-xl flex items-center justify-center hover:bg-white/10 transition-all duration-300 shrink-0 self-start ${
+            sidebarVisible
+              ? 'w-0 opacity-0 p-0 overflow-hidden'
+              : 'w-10 h-10 opacity-100'
+          }`}
+          title="Показать панель"
+        >
+          <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+
+        <aside className={`glass-card rounded-2xl flex flex-col min-h-0 transition-all duration-300 ease-in-out overflow-hidden ${
+          sidebarVisible
+            ? 'w-80 p-4 opacity-100'
+            : 'w-0 p-0 opacity-0'
+        }`}>
+          <div className={`flex flex-col min-h-0 flex-1 w-72 transition-opacity duration-200 ${
+            sidebarVisible ? 'opacity-100 delay-100' : 'opacity-0'
+          }`}>
+          {/* Табы с иконками */}
+          <div className="flex gap-2 mb-4 shrink-0">
+            <button
+              onClick={() => setSidebarVisible(false)}
+              className="p-2 rounded-xl glass text-gray-400 hover:text-white hover:bg-white/10 transition-all"
+              title="Скрыть панель"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setSidebarTab('chat')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl transition-all ${
+                sidebarTab === 'chat'
+                  ? 'bg-purple-500/30 text-white'
+                  : 'glass text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+              {sidebarTab === 'chat' && <span className="text-sm font-medium">Чат</span>}
+            </button>
+            <button
+              onClick={() => setSidebarTab('users')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl transition-all ${
+                sidebarTab === 'users'
+                  ? 'bg-purple-500/30 text-white'
+                  : 'glass text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+              <span className="text-sm font-medium">{users.length}</span>
+            </button>
           </div>
 
-          <div className="flex gap-2 shrink-0">
-            <div className="flex-1">
-              <Input
-                placeholder="Сообщение..."
-                value={newMessage}
-                onChange={setNewMessage}
-                onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-              />
+          {/* Контент */}
+          {sidebarTab === 'chat' ? (
+            <>
+              <div className="flex-1 overflow-y-auto space-y-2 min-h-0 mb-3">
+                {messages.length === 0 ? (
+                  <div className="text-center text-gray-500 py-8">
+                    <svg className="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                    <p className="text-sm">Пока нет сообщений</p>
+                  </div>
+                ) : (
+                  messages.map((msg, i) => (
+                    <div key={i} className="glass rounded-xl p-3">
+                      <span className="text-sm text-purple-400 font-semibold">
+                        {msg.userName}
+                      </span>
+                      <p className="mt-1 text-gray-200 text-sm">{msg.message}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="flex gap-2 shrink-0">
+                <div className="flex-1">
+                  <Input
+                    placeholder="Сообщение..."
+                    value={newMessage}
+                    onChange={setNewMessage}
+                    onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                  />
+                </div>
+                <Button onClick={sendMessage}>→</Button>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 overflow-y-auto">
+              <div className="space-y-2">
+                {users.map((user, index) => (
+                  <div
+                    key={user.userId}
+                    className={`flex items-center gap-3 p-3 rounded-xl transition-all ${
+                      readyUsers.includes(user.userId)
+                        ? 'bg-green-500/20 border border-green-500/30'
+                        : user.userId === hostId
+                        ? 'bg-yellow-500/20 border border-yellow-500/30'
+                        : 'glass'
+                    }`}
+                  >
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${
+                      user.userId === hostId ? 'bg-yellow-500/30' : 'bg-purple-500/30'
+                    }`}>
+                      {user.userId === hostId ? '👑' : user.userName.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">
+                        {user.userName}
+                        {user.userId === mySocketId && <span className="text-gray-500 text-xs ml-1">(вы)</span>}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {user.userId === hostId ? 'Хост' : 'Зритель'}
+                        {readyUsers.includes(user.userId) && ' • ✓ Готов'}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-            <Button onClick={sendMessage}>→</Button>
+          )}
           </div>
         </aside>
       </main>

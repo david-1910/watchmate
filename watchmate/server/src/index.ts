@@ -32,6 +32,8 @@ function generateHostToken(): string {
 
 function getRoomUsers(roomId: string): { userId: string; userName: string }[] {
     const users: { userId: string; userName: string }[] = [];
+    const hostId = roomHosts.get(roomId);
+
     userRooms.forEach((room, userId) => {
         if (room === roomId) {
             users.push({
@@ -40,6 +42,14 @@ function getRoomUsers(roomId: string): { userId: string; userName: string }[] {
             });
         }
     });
+
+    // Сортируем так, чтобы хост всегда был первым
+    users.sort((a, b) => {
+        if (a.userId === hostId) return -1;
+        if (b.userId === hostId) return 1;
+        return 0;
+    });
+
     return users;
 }
 
@@ -137,6 +147,11 @@ io.on("connection", (socket) => {
 
     socket.on("clear-video", (roomId: string) => {
         io.to(roomId).emit("video-update", "");
+        io.to(roomId).emit("local-file-update", null);
+    });
+
+    socket.on("share-local-file", (data: { roomId: string; fileName: string }) => {
+        io.to(data.roomId).emit("local-file-update", data.fileName);
     });
 
     socket.on("toggle-ready", (roomId: string) => {

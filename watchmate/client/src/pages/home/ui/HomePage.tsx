@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Input } from '../../../shared/ui'
-import { createRoom, getRoom } from '../../../shared/api'
+import { createRoom, getRoom, verifyRoomPassword } from '../../../shared/api'
 
 function HomePage() {
   const [showModal, setShowModal] = useState(false)
@@ -10,6 +10,11 @@ function HomePage() {
   const [roomCode, setRoomCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [isPrivate, setIsPrivate] = useState(false)
+  const [roomPassword, setRoomPassword] = useState('')
+  // Для присоединения к приватной комнате
+  const [joinRoomIsPrivate, setJoinRoomIsPrivate] = useState<boolean | null>(null)
+  const [joinPassword, setJoinPassword] = useState('')
   const navigate = useNavigate()
 
   const handleCreateRoom = async () => {
@@ -17,11 +22,18 @@ function HomePage() {
       setError('Введите ваше имя')
       return
     }
+    if (isPrivate && !roomPassword.trim()) {
+      setError('Введите пароль для приватной комнаты')
+      return
+    }
     setLoading(true)
     setError('')
 
     try {
-      const room = await createRoom()
+      const room = await createRoom({
+        isPrivate,
+        password: isPrivate ? roomPassword.trim() : undefined
+      })
       sessionStorage.setItem(`hostToken_${room.id}`, room.hostToken)
       sessionStorage.setItem('userName', userName.trim())
       navigate(`/room/${room.id}`)
@@ -46,12 +58,40 @@ function HomePage() {
 
     try {
       const room = await getRoom(roomCode.trim().toUpperCase())
-      if (room) {
-        sessionStorage.setItem('userName', userName.trim())
-        navigate(`/room/${room.id}`)
-      } else {
+      if (!room) {
         setError('Комната не найдена')
+        setJoinRoomIsPrivate(null)
+        setLoading(false)
+        return
       }
+
+      // Если комната приватная и мы еще не знаем этого - показываем поле пароля
+      if (room.isPrivate && joinRoomIsPrivate === null) {
+        setJoinRoomIsPrivate(true)
+        setLoading(false)
+        return
+      }
+
+      // Если комната приватная - проверяем пароль
+      if (room.isPrivate) {
+        if (!joinPassword.trim()) {
+          setError('Введите пароль')
+          setLoading(false)
+          return
+        }
+        const passwordValid = await verifyRoomPassword(room.id, joinPassword.trim())
+        if (!passwordValid) {
+          setError('Неверный пароль')
+          setLoading(false)
+          return
+        }
+        // Сохраняем факт проверки пароля для этой комнаты
+        sessionStorage.setItem(`passwordVerified_${room.id}`, 'true')
+      }
+
+      // Всё ок - заходим
+      sessionStorage.setItem('userName', userName.trim())
+      navigate(`/room/${room.id}`)
     } catch {
       setError('Ошибка подключения')
     } finally {
@@ -63,6 +103,8 @@ function HomePage() {
     setModalTab(tab)
     setShowModal(true)
     setError('')
+    setJoinRoomIsPrivate(null)
+    setJoinPassword('')
   }
 
   const scrollToSection = (id: string) => {
@@ -82,7 +124,7 @@ function HomePage() {
       <nav className="fixed top-0 left-0 right-0 z-40 glass">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo-watchmate.png" alt="WatchMate" className="h-10 w-10 object-contain animate-float-slow" />
+            <img src="/logo-watchmate.png" alt="WatchMate" className="h-10 w-10 object-contain" />
             <span className="text-xl font-bold text-gradient">WatchMate</span>
           </div>
 
@@ -342,7 +384,7 @@ function HomePage() {
             {/* Табы */}
             <div className="flex gap-2 mb-6">
               <button
-                onClick={() => { setModalTab('create'); setError('') }}
+                onClick={() => { setModalTab('create'); setError(''); setJoinRoomIsPrivate(null); setJoinPassword('') }}
                 className={`flex-1 py-3 rounded-xl font-semibold transition-all ${
                   modalTab === 'create'
                     ? 'bg-gradient-to-r from-purple-600 to-indigo-600'
@@ -352,7 +394,7 @@ function HomePage() {
                 Создать
               </button>
               <button
-                onClick={() => { setModalTab('join'); setError('') }}
+                onClick={() => { setModalTab('join'); setError(''); setJoinRoomIsPrivate(null); setJoinPassword('') }}
                 className={`flex-1 py-3 rounded-xl font-semibold transition-all ${
                   modalTab === 'join'
                     ? 'bg-gradient-to-r from-purple-600 to-indigo-600'
@@ -375,16 +417,68 @@ function HomePage() {
                 />
               </div>
 
+              {modalTab === 'create' && (
+                <>
+                  <div className="flex items-center justify-between p-3 glass rounded-xl">
+                    <div>
+                      <p className="font-medium">Приватная комната</p>
+                      <p className="text-xs text-gray-400">Потребуется пароль для входа</p>
+                    </div>
+                    <button
+                      onClick={() => setIsPrivate(!isPrivate)}
+                      className={`w-12 h-6 rounded-full transition-colors ${
+                        isPrivate ? 'bg-purple-500' : 'bg-gray-600'
+                      }`}
+                    >
+                      <div className={`w-5 h-5 bg-white rounded-full transition-transform ${
+                        isPrivate ? 'translate-x-6' : 'translate-x-0.5'
+                      }`} />
+                    </button>
+                  </div>
+
+                  {isPrivate && (
+                    <div>
+                      <label className="text-sm text-gray-400 mb-1 block">Пароль комнаты</label>
+                      <Input
+                        placeholder="Придумайте пароль"
+                        value={roomPassword}
+                        onChange={setRoomPassword}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+
               {modalTab === 'join' && (
-                <div>
-                  <label className="text-sm text-gray-400 mb-1 block">Код комнаты</label>
-                  <Input
-                    placeholder="Например: ABC123"
-                    value={roomCode}
-                    onChange={(v) => setRoomCode(v.toUpperCase())}
-                    onKeyDown={(e) => e.key === 'Enter' && handleJoinRoom()}
-                  />
-                </div>
+                <>
+                  <div>
+                    <label className="text-sm text-gray-400 mb-1 block">Код комнаты</label>
+                    <Input
+                      placeholder="Например: ABC123"
+                      value={roomCode}
+                      onChange={(v) => {
+                        setRoomCode(v.toUpperCase())
+                        // Сбрасываем состояние при изменении кода
+                        setJoinRoomIsPrivate(null)
+                        setJoinPassword('')
+                        setError('')
+                      }}
+                      onKeyDown={(e) => e.key === 'Enter' && handleJoinRoom()}
+                    />
+                  </div>
+
+                  {joinRoomIsPrivate && (
+                    <div>
+                      <label className="text-sm text-gray-400 mb-1 block">Пароль комнаты</label>
+                      <Input
+                        placeholder="Введите пароль"
+                        value={joinPassword}
+                        onChange={setJoinPassword}
+                        onKeyDown={(e) => e.key === 'Enter' && handleJoinRoom()}
+                      />
+                    </div>
+                  )}
+                </>
               )}
 
               {error && (

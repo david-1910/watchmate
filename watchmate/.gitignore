@@ -3,7 +3,7 @@ node_modules
 .env
 .env.local
 .env.*.local
-
+.gitignore
 # Логи
 *.log
 npm-debug.log*
@@ -20,7 +20,7 @@ Thumbs.db
 
 # Тестирование
 coverage/
-
+.claude/
 # Временные файлы
 *.tmp
 *.temp

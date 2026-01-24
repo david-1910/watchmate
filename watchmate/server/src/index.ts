@@ -8,7 +8,7 @@ const server = createServer(app);
 
 const io = new Server(server, {
     cors: {
-        origin: "http://localhost:5173",
+        origin: "*", // В продакшене заменить на конкретный домен
         methods: ["GET", "POST"],
     },
 });
@@ -16,7 +16,7 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
-const rooms = new Map<string, { id: string; createdAt: Date; hostToken: string }>();
+const rooms = new Map<string, { id: string; createdAt: Date; hostToken: string; isPrivate: boolean; password?: string }>();
 const userNames = new Map<string, string>();
 const userRooms = new Map<string, string>();
 const readyUsers = new Map<string, Set<string>>();
@@ -60,18 +60,53 @@ function getRoomReadyUsers(roomId: string): string[] {
 app.post("/rooms", (req, res) => {
     const id = generateRoomId();
     const hostToken = generateHostToken();
-    rooms.set(id, { id, createdAt: new Date(), hostToken });
-    console.log(`Комната создана: ${id}`);
-    res.json({ id, hostToken });
+    const { isPrivate, password } = req.body || {};
+
+    rooms.set(id, {
+        id,
+        createdAt: new Date(),
+        hostToken,
+        isPrivate: !!isPrivate,
+        password: isPrivate ? password : undefined
+    });
+
+    console.log(`Комната создана: ${id} (${isPrivate ? 'приватная' : 'публичная'})`);
+    res.json({ id, hostToken, isPrivate: !!isPrivate });
 });
 
 app.get("/rooms/:id", (req, res) => {
     const { id } = req.params;
     const room = rooms.get(id.toUpperCase());
     if (room) {
-        res.json(room);
+        // Не отправляем пароль клиенту
+        res.json({
+            id: room.id,
+            createdAt: room.createdAt,
+            isPrivate: room.isPrivate
+        });
     } else {
         res.status(404).json({ error: "Комната не найдена" });
+    }
+});
+
+// Проверка пароля для приватной комнаты
+app.post("/rooms/:id/verify", (req, res) => {
+    const { id } = req.params;
+    const { password } = req.body;
+    const room = rooms.get(id.toUpperCase());
+
+    if (!room) {
+        return res.status(404).json({ error: "Комната не найдена" });
+    }
+
+    if (!room.isPrivate) {
+        return res.json({ success: true });
+    }
+
+    if (room.password === password) {
+        return res.json({ success: true });
+    } else {
+        return res.status(401).json({ error: "Неверный пароль" });
     }
 });
 
@@ -216,7 +251,16 @@ io.on("connection", (socket) => {
             }
         }
         if (roomId) {
-            io.to(roomId).emit("users-update", getRoomUsers(roomId));
+            const remainingUsers = getRoomUsers(roomId);
+            io.to(roomId).emit("users-update", remainingUsers);
+
+            // Удаляем комнату если все вышли
+            if (remainingUsers.length === 0) {
+                rooms.delete(roomId);
+                roomHosts.delete(roomId);
+                readyUsers.delete(roomId);
+                console.log(`Комната ${roomId} удалена (все вышли)`);
+            }
         }
     });
 });

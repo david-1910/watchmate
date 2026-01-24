@@ -339,6 +339,22 @@
   animation: fade-in 0.3s ease-out;
 }
 
+/* Анимация появления сообщения */
+@keyframes message-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-message-in {
+  animation: message-in 0.2s ease-out forwards;
+}
+
 @keyframes float-up-right {
   0% {
     opacity: 1;

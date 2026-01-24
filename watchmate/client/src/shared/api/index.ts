@@ -1,4 +1,4 @@
-export { createRoom, getRoom } from './rooms'
+export { createRoom, getRoom, verifyRoomPassword } from './rooms'
 export { connectSocket, getSocket, disconnectSocket } from "./socket"
 
 

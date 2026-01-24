@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
-import { connectSocket, disconnectSocket } from '../../../shared/api'
+import { useEffect, useState, useRef } from 'react'
+import { connectSocket, disconnectSocket, getRoom, verifyRoomPassword } from '../../../shared/api'
 import { Button, Input } from '../../../shared/ui'
 
 type Message = {
@@ -23,6 +23,12 @@ type Reaction = {
   direction: 'left' | 'right'
   duration: number
   zIndex: number
+}
+
+type QueueItem = {
+  id: string
+  url: string
+  title: string
 }
 
 function RoomPage() {
@@ -51,8 +57,66 @@ function RoomPage() {
   const [showExitModal, setShowExitModal] = useState(false)
   const [sidebarTab, setSidebarTab] = useState<'chat' | 'users'>('chat')
   const [sidebarVisible, setSidebarVisible] = useState(true)
+  const [roomExists, setRoomExists] = useState<boolean | null>(null)
+  const [isPrivateRoom, setIsPrivateRoom] = useState<boolean | null>(null)
+  const [passwordVerified, setPasswordVerified] = useState(false)
+  const [passwordInput, setPasswordInput] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [videoQueue, setVideoQueue] = useState<QueueItem[]>([])
+  const [queueInput, setQueueInput] = useState('')
+  const [queueVisible, setQueueVisible] = useState(true)
+
+  // Проверка существования комнаты
+  useEffect(() => {
+    if (!id) return
+    getRoom(id).then((room) => {
+      if (room) {
+        setRoomExists(true)
+        setIsPrivateRoom(room.isPrivate)
+        // Если создатель комнаты - пропускаем проверку пароля
+        const hostToken = sessionStorage.getItem(`hostToken_${id}`)
+        if (hostToken) {
+          setPasswordVerified(true)
+        } else if (!room.isPrivate) {
+          setPasswordVerified(true)
+        }
+        // Если пользователь уже проверил пароль для этой комнаты (пришел с главной)
+        else if (sessionStorage.getItem(`passwordVerified_${id}`)) {
+          setPasswordVerified(true)
+        }
+      } else {
+        setRoomExists(false)
+        setIsPrivateRoom(false)
+      }
+    })
+  }, [id])
+
+  // Авто-скролл к новым сообщениям
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   const isHost = mySocketId === hostId
+
+  // Генерация цвета аватара на основе имени
+  const getAvatarColor = (name: string) => {
+    const colors = [
+      'bg-purple-500/40',
+      'bg-blue-500/40',
+      'bg-green-500/40',
+      'bg-pink-500/40',
+      'bg-orange-500/40',
+      'bg-cyan-500/40',
+      'bg-red-500/40',
+      'bg-indigo-500/40',
+    ]
+    let hash = 0
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash)
+    }
+    return colors[Math.abs(hash) % colors.length]
+  }
 
   const handleExit = () => {
     disconnectSocket()
@@ -241,7 +305,57 @@ function RoomPage() {
     }
   }
 
+  // Загрузка - проверяем существование комнаты
+  if (roomExists === null || isPrivateRoom === null) {
+    return (
+      <div className="min-h-screen bg-animated-gradient text-white flex items-center justify-center">
+        <div className="text-xl">Загрузка...</div>
+      </div>
+    )
+  }
+
+  // Комната не найдена
+  if (roomExists === false) {
+    return (
+      <div className="min-h-screen bg-animated-gradient text-white flex flex-col items-center justify-center">
+        <div className="glass-card rounded-3xl p-10 flex flex-col items-center">
+          <div className="text-6xl mb-4">😕</div>
+          <h1 className="text-2xl font-bold mb-2">Комната не найдена</h1>
+          <p className="text-gray-400 mb-6 text-center">
+            Комната не существует или была закрыта
+          </p>
+          <Button onClick={() => navigate('/')}>На главную</Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Форма входа - если нет имени и нужен пароль (прямой переход по ссылке на приватную комнату)
   if (!joined) {
+    const needsPassword = isPrivateRoom && !passwordVerified
+
+    const handleJoinWithPassword = async () => {
+      if (!userName.trim()) return
+
+      if (needsPassword) {
+        if (!passwordInput.trim()) {
+          setPasswordError('Введите пароль')
+          return
+        }
+        const success = await verifyRoomPassword(id!, passwordInput.trim())
+        if (!success) {
+          setPasswordError('Неверный пароль')
+          return
+        }
+        // Сохраняем факт проверки пароля для этой комнаты
+        sessionStorage.setItem(`passwordVerified_${id}`, 'true')
+        setPasswordVerified(true)
+      }
+
+      sessionStorage.setItem('userName', userName.trim())
+      setJoined(true)
+    }
+
     return (
       <div className="min-h-screen bg-animated-gradient text-white flex flex-col items-center justify-center relative">
         {/* Кнопка назад */}
@@ -258,17 +372,31 @@ function RoomPage() {
         <div className="glass-card rounded-3xl p-10 flex flex-col items-center">
           <img src="/logo-watchmate.png" alt="WatchMate" className="h-16 w-16 object-contain mb-3" />
           <h1 className="text-4xl font-bold mb-2 text-glow">WatchMate</h1>
-          <p className="text-gray-300 mb-8">
+          <p className={`text-gray-300 ${needsPassword ? 'mb-2' : 'mb-8'}`}>
             Комната: <code className="glass px-3 py-1 rounded-lg ml-1">{id}</code>
           </p>
-          <div className="flex flex-col gap-4 w-full">
+          {needsPassword && (
+            <p className="text-purple-400 text-sm mb-6">🔒 Приватная комната</p>
+          )}
+          <div className="flex flex-col gap-4 w-full min-w-[280px]">
             <Input
               placeholder="Введи своё имя"
               value={userName}
               onChange={setUserName}
-              onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
+              onKeyDown={(e) => e.key === 'Enter' && handleJoinWithPassword()}
             />
-            <Button onClick={handleJoin}>Войти в комнату</Button>
+            {needsPassword && (
+              <Input
+                placeholder="Пароль комнаты"
+                value={passwordInput}
+                onChange={setPasswordInput}
+                onKeyDown={(e) => e.key === 'Enter' && handleJoinWithPassword()}
+              />
+            )}
+            {passwordError && (
+              <p className="text-red-400 text-sm text-center">{passwordError}</p>
+            )}
+            <Button onClick={handleJoinWithPassword}>Войти в комнату</Button>
           </div>
         </div>
       </div>
@@ -299,7 +427,7 @@ function RoomPage() {
                 <div
                   key={user.userId}
                   className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 border-gray-900 ${
-                    user.userId === hostId ? 'bg-yellow-500/50' : 'bg-purple-500/50'
+                    user.userId === hostId ? 'bg-yellow-500/50' : getAvatarColor(user.userName)
                   }`}
                   title={user.userName}
                 >
@@ -319,6 +447,11 @@ function RoomPage() {
             className="hidden md:flex items-center gap-2 glass px-3 py-2 rounded-xl hover:bg-white/10 transition-all group"
             title="Нажмите чтобы скопировать"
           >
+            {isPrivateRoom && (
+              <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            )}
             <span className="text-gray-400 text-sm">Комната:</span>
             <code className="font-mono text-sm text-white group-hover:text-purple-300 transition-colors">{id}</code>
             {copied ? (
@@ -428,52 +561,25 @@ function RoomPage() {
                   </div>
                 )}
               </>
-            ) : hostFileName && !isHost ? (
-              <div className="flex flex-col items-center gap-4 p-8">
-                <p className="text-gray-300 text-center">
-                  Хост загрузил локальный файл:
-                </p>
-                <code className="glass px-4 py-2 rounded-lg text-purple-300 text-sm max-w-md truncate">
-                  {hostFileName}
-                </code>
-                <p className="text-gray-400 text-sm text-center">
-                  Загрузите тот же файл для синхронного просмотра
-                </p>
-                <label className="glass-button px-5 py-3 rounded-xl cursor-pointer flex items-center gap-2">
-                  Загрузить файл
-                  <input
-                    type="file"
-                    accept="video/*"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-                </label>
-              </div>
             ) : (
-              <div className="flex flex-col items-center gap-4 p-8">
+              <div className="flex flex-col items-center gap-1 p-8">
                 {isHost ? (
                   <>
-                    <p className="text-gray-300">
-                      Вставьте ссылку или загрузите файл
+                    <p className="text-gray-300 mb-2">
+                      Вставьте ссылку на видео
                     </p>
-                    <Input
-                      placeholder="Любая ссылка..."
-                      value={inputUrl}
-                      onChange={setInputUrl}
-                    />
-                    <div className="flex gap-3">
-                      <Button onClick={() => shareVideo(inputUrl)}>
-                        Открыть ссылку
-                      </Button>
-                      <label className="glass-button-secondary px-5 py-3 rounded-xl cursor-pointer flex items-center gap-2 hover:bg-white/15 transition-all">
-                        Загрузить файл
-                        <input
-                          type="file"
-                          accept="video/*"
-                          onChange={handleFileUpload}
-                          className="hidden"
+                    <div className="flex gap-3 w-full max-w-lg">
+                      <div className="flex-1">
+                        <Input
+                          placeholder="YouTube, Vimeo и др..."
+                          value={inputUrl}
+                          onChange={setInputUrl}
+                          onKeyDown={(e) => e.key === 'Enter' && shareVideo(inputUrl)}
                         />
-                      </label>
+                      </div>
+                      <Button onClick={() => shareVideo(inputUrl)}>
+                        Открыть
+                      </Button>
                     </div>
                   </>
                 ) : (
@@ -578,27 +684,65 @@ function RoomPage() {
                     <p className="text-sm">Пока нет сообщений</p>
                   </div>
                 ) : (
-                  messages.map((msg, i) => (
-                    <div key={i} className="glass rounded-xl p-3">
-                      <span className="text-sm text-purple-400 font-semibold">
-                        {msg.userName}
-                      </span>
-                      <p className="mt-1 text-gray-200 text-sm">{msg.message}</p>
-                    </div>
-                  ))
+                  <>
+                    {messages.map((msg, i) => {
+                      const isMe = msg.userName === userName
+                      const isLast = i === messages.length - 1
+                      return (
+                        <div key={i} className={`flex ${isLast ? 'animate-message-in' : ''} ${isMe ? 'justify-end pr-2' : 'justify-start pl-2'}`}>
+                          <div className="max-w-[80%] relative">
+                            <div className={`px-3 py-1.5 pb-4 rounded-2xl relative ${
+                              isMe
+                                ? 'bg-purple-500 text-white rounded-br-none'
+                                : 'bg-slate-700 text-gray-200 rounded-bl-none'
+                            }`}>
+                              {!isMe && (
+                                <span className="text-xs text-purple-400 font-medium block mb-0.5">{msg.userName}</span>
+                              )}
+                              <p className="text-sm break-words">{msg.message}</p>
+                              <span className={`absolute bottom-1 right-2 text-[10px] ${
+                                isMe ? 'text-purple-200' : 'text-gray-500'
+                              }`}>
+                                {new Date(msg.timestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                            {/* Хвостик */}
+                            <div
+                              className={`absolute bottom-0 w-2 h-2 ${
+                                isMe
+                                  ? 'right-0 translate-x-full bg-purple-500'
+                                  : 'left-0 -translate-x-full bg-slate-700'
+                              }`}
+                              style={{
+                                clipPath: isMe
+                                  ? 'polygon(0 0, 0 100%, 100% 100%)'
+                                  : 'polygon(100% 0, 0 100%, 100% 100%)'
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })}
+                    <div ref={messagesEndRef} />
+                  </>
                 )}
               </div>
 
-              <div className="flex gap-2 shrink-0">
-                <div className="flex-1">
-                  <Input
-                    placeholder="Сообщение..."
-                    value={newMessage}
-                    onChange={setNewMessage}
-                    onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-                  />
-                </div>
-                <Button onClick={sendMessage}>→</Button>
+              <div className="relative shrink-0">
+                <input
+                  type="text"
+                  placeholder="Сообщение..."
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 pr-12 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50 transition-colors"
+                />
+                <button
+                  onClick={sendMessage}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 hover:bg-white/10 rounded-lg transition-colors"
+                >
+                  <img src="/send.svg" alt="Send" className="w-5 h-5" />
+                </button>
               </div>
             </>
           ) : (
@@ -616,7 +760,7 @@ function RoomPage() {
                     }`}
                   >
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${
-                      user.userId === hostId ? 'bg-yellow-500/30' : 'bg-purple-500/30'
+                      user.userId === hostId ? 'bg-yellow-500/30' : getAvatarColor(user.userName)
                     }`}>
                       {user.userId === hostId ? '👑' : user.userName.charAt(0).toUpperCase()}
                     </div>

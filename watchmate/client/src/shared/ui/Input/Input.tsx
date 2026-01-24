@@ -13,7 +13,7 @@ function Input({ placeholder, value, onChange, onKeyDown }: InputProps) {
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onKeyDown={onKeyDown}
-      className="w-[350px] px-4 py-3 rounded-xl text-white placeholder-gray-400 glass-input focus:outline-none"
+      className="w-[380px] px-4 py-3 rounded-xl text-white placeholder-gray-400 glass-input focus:outline-none"
     />
   )
 }

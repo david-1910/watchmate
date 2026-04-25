@@ -7,7 +7,6 @@ import {
   verifyRoomPassword,
 } from '../../../shared/api'
 import { Button, Input } from '../../../shared/ui'
-import { connect } from 'socket.io-client'
 
 type Message = {
   userId: string
@@ -62,8 +61,8 @@ function RoomPage() {
   const [inputUrl, setInputUrl] = useState('')
   const [videoUrl, setVideoUrl] = useState('')
   const [localVideo, setLocalVideo] = useState<string | null>(null)
-  const [localFileName, setLocalFileName] = useState<string | null>(null)
-  const [hostFileName, setHostFileName] = useState<string | null>(null)
+  const [, setLocalFileName] = useState<string | null>(null)
+  const [, setHostFileName] = useState<string | null>(null)
   const [readyUsers, setReadyUsers] = useState<string[]>([])
   const [isPlaying, setIsPlaying] = useState(false)
   const [hostId, setHostId] = useState<string | null>(null)
@@ -83,6 +82,7 @@ function RoomPage() {
   const [suggestInput, setSuggestInput] = useState('')
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [autoplay, setAutoplay] = useState(false)
 
   // Проверка существования комнаты
   useEffect(() => {
@@ -314,6 +314,12 @@ function RoomPage() {
     socket.emit('queue-reorder', { roomId: id, fromIndex, toIndex })
   }
 
+  const playNextFromQueue = () => {
+    if (!id) return
+    const socket = connectSocket()
+    socket.emit('queue-next', { roomId: id })
+  }
+
   const toggleReady = () => {
     if (!id) return
     if (!videoUrl && !localVideo) return
@@ -329,12 +335,6 @@ function RoomPage() {
     setNewMessage('')
   }
 
-  const startCountdown = () => {
-    if (!id) return
-    const socket = connectSocket()
-    socket.emit('start-countdown', id)
-  }
-
   const [copied, setCopied] = useState(false)
 
   const copyRoomCode = () => {
@@ -342,12 +342,6 @@ function RoomPage() {
     navigator.clipboard.writeText(id)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
-  }
-
-  const handleJoin = () => {
-    if (!userName.trim()) return
-    sessionStorage.setItem('userName', userName.trim())
-    setJoined(true)
   }
 
   const sendReaction = (emoji: string) => {
@@ -365,21 +359,6 @@ function RoomPage() {
       return `https://www.youtube.com/embed/${youtubeMatch[1]}${autoplayParam}`
     }
     return url
-  }
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file && id) {
-      const url = URL.createObjectURL(file)
-      setLocalVideo(url)
-      setLocalFileName(file.name)
-      setVideoUrl('')
-      // Только хост сообщает другим пользователям имя файла
-      if (isHost) {
-        const socket = connectSocket()
-        socket.emit('share-local-file', { roomId: id, fileName: file.name })
-      }
-    }
   }
 
   // Загрузка - проверяем существование комнаты
@@ -728,6 +707,27 @@ function RoomPage() {
                 </div>
               </>
             )}
+            {/* Управление */}
+            <div className="border-t border-white/10 mt-3 pt-3 flex gap-2">
+              <button
+                onClick={() => setAutoplay(!autoplay)}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm transition-colors ${
+                  autoplay
+                    ? 'bg-green-500/30 text-green-400'
+                    : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                }`}
+              >
+                {autoplay ? '⏸ Авто' : '▶ Авто'}
+              </button>
+              <button
+                onClick={playNextFromQueue}
+                disabled={videoQueue.length === 0}
+                className="flex-1 py-2 bg-purple-500/30 hover:bg-purple-500/50 disabled:opacity-50
+  disabled:hover:bg-purple-500/30 rounded-lg text-sm transition-colors"
+              >
+                Далее →
+              </button>
+            </div>
           </aside>
         )}
         {!isHost && (
@@ -753,6 +753,31 @@ function RoomPage() {
             <p className="text-xs text-gray-500">
               Хост увидит ваше предложение
             </p>
+
+            {/* Очередь (только просмотр) */}
+            {videoQueue.length > 0 && (
+              <>
+                <div className="border-t border-white/10 my-3"></div>
+                <h4 className="text-sm font-bold text-gray-400 mb-2">
+                  Очередь ({videoQueue.length})
+                </h4>
+                <div className="flex-1 overflow-y-auto space-y-2">
+                  {videoQueue.map((item, index) => (
+                    <div
+                      key={item.id}
+                      className="glass rounded-lg p-2 flex items-center gap-2"
+                    >
+                      <span className="text-purple-400 text-sm font-bold">
+                        {index + 1}
+                      </span>
+                      <span className="flex-1 text-sm truncate">
+                        {item.title}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </aside>
         )}
         <div className="flex-1 flex flex-col min-h-0">
@@ -782,6 +807,11 @@ function RoomPage() {
                   height="100%"
                   controls
                   className="rounded-lg"
+                  onEnded={() => {
+                    if (autoplay && isHost && videoQueue.length > 0) {
+                      playNextFromQueue()
+                    }
+                  }}
                 />
                 {isHost && (
                   <button
@@ -1103,7 +1133,7 @@ function RoomPage() {
             ) : (
               <div className="flex-1 overflow-y-auto">
                 <div className="space-y-2">
-                  {users.map((user, index) => (
+                  {users.map((user) => (
                     <div
                       key={user.userId}
                       className={`flex items-center gap-3 p-3 rounded-xl transition-all ${

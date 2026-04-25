@@ -346,15 +346,26 @@ io.on("connection", (socket) => {
             )
                 return;
 
-            // Удаляем элемент из старой позиции
             const [movedItem] = queue.splice(fromIndex, 1);
-            // Вставляем в новую позицию
             queue.splice(toIndex, 0, movedItem);
 
             roomQueues.set(roomId, queue);
             io.to(roomId).emit("queue-update", queue);
         },
     );
+
+    socket.on("queue-next", ({ roomId }: { roomId: string }) => {
+        if (roomHosts.get(roomId) !== socket.id) return;
+
+        const queue = roomQueues.get(roomId) || [];
+        if (queue.length === 0) return;
+
+        const [nextItem, ...rest] = queue;
+        roomQueues.set(roomId, rest);
+
+        io.to(roomId).emit("queue-update", rest);
+        io.to(roomId).emit("video-update", nextItem.url);
+    });
 
     socket.on(
         "suggest-video",

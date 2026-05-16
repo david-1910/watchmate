@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { getRoom, verifyRoomPassword, disconnectSocket, connectSocket } from '../../../shared/api'
 import { SOCKET_EVENTS } from '../../../shared/config'
 import { Button, Input } from '../../../shared/ui'
+import { playNotificationSound } from '../../../shared/lib'
 import { session } from '../../../entities/room'
 import { useRoomConnection } from '../../../features/room-connection'
 import { useChat } from '../../../features/chat'
@@ -73,6 +74,14 @@ function RoomPage() {
   const { queue, queueInput, setQueueInput, dragOverIndex, setDraggedIndex, setDragOverIndex, addToQueue, removeFromQueue, playFromQueue, playNext, handleDragEnd } = useQueue(roomId)
   const { suggestions, suggestInput, setSuggestInput, suggestVideo, acceptSuggestion, rejectSuggestion } = useSuggestions(roomId)
   const { readyUsers, toggleReady } = useReadySystem(roomId)
+
+  const prevSuggestionsLenRef = useRef(0)
+  useEffect(() => {
+    if (isHost && suggestions.length > prevSuggestionsLenRef.current) {
+      playNotificationSound()
+    }
+    prevSuggestionsLenRef.current = suggestions.length
+  }, [suggestions.length, isHost])
 
   const handleJoin = async () => {
     if (!userName.trim()) return
@@ -240,6 +249,7 @@ function RoomPage() {
           onSend={sendMessage} messagesEndRef={messagesEndRef} currentUserName={userName}
           panelContent={isHost ? <QueuePanel {...queuePanelProps} /> : <SuggestPanel {...suggestPanelProps} />}
           panelLabel={isHost ? 'Очередь' : 'Предложить'}
+          panelBadge={isHost ? suggestions.length : 0}
           onTransferHost={(userId) => connectSocket().emit(SOCKET_EVENTS.TRANSFER_HOST, userId)} />
       </div>
 

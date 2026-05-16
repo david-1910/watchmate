@@ -19,7 +19,13 @@ export const YouTubePlayer = ({ videoId, onReady, onDestroy, onStateChange }: Pr
     ensureYTApi(() => {
       if (destroyed || !containerRef.current) return
 
-      const player = new window.YT.Player(containerRef.current, {
+      // Создаём дочерний div — YouTube заменит его на iframe, не трогая React-узел
+      const playerDiv = document.createElement('div')
+      playerDiv.style.width = '100%'
+      playerDiv.style.height = '100%'
+      containerRef.current.appendChild(playerDiv)
+
+      const player = new window.YT.Player(playerDiv, {
         videoId,
         width: '100%',
         height: '100%',
@@ -37,6 +43,7 @@ export const YouTubePlayer = ({ videoId, onReady, onDestroy, onStateChange }: Pr
 
     return () => {
       destroyed = true
+      if (containerRef.current) containerRef.current.innerHTML = ''
       onDestroy()
     }
   }, [videoId]) // eslint-disable-line react-hooks/exhaustive-deps

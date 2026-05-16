@@ -20,17 +20,19 @@ type Props = {
   currentUserName: string
   panelContent: ReactNode
   panelLabel: string
+  panelBadge?: number
   onTransferHost: (userId: string) => void
 }
 
 export const RoomSidebar = ({
   visible, onHide, users, hostId, mySocketId, readyUsers,
   messages, draft, onDraftChange, onSend, messagesEndRef, currentUserName,
-  panelContent, panelLabel, onTransferHost,
+  panelContent, panelLabel, panelBadge = 0, onTransferHost,
 }: Props) => {
   const [tab, setTab] = useState<Tab>('chat')
   const hostUserName = users.find((u) => u.userId === hostId)?.userName
 
+  const showBadge = panelBadge > 0 && tab !== 'panel'
 
   return (
     <aside className={[
@@ -73,7 +75,12 @@ export const RoomSidebar = ({
 
             {/* Вкладка: Очередь / Предложить */}
             <button onClick={() => setTab('panel')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl transition-all text-sm ${tab === 'panel' ? 'bg-purple-500/30 text-white font-medium' : 'glass text-gray-400 hover:text-white hover:bg-white/5'}`}>
+              className={`relative flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl transition-all text-sm ${tab === 'panel' ? 'bg-purple-500/30 text-white font-medium' : 'glass text-gray-400 hover:text-white hover:bg-white/5'}`}>
+              {showBadge && (
+                <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 bg-purple-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+                  {panelBadge}
+                </span>
+              )}
               <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h10" />
               </svg>

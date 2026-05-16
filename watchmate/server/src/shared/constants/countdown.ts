@@ -1,0 +1,2 @@
+export const COUNTDOWN_START = 3
+export const COUNTDOWN_INTERVAL_MS = 1000

@@ -1,0 +1,30 @@
+export const SOCKET_EVENTS = {
+  // Client → Server
+  JOIN_ROOM: 'join-room',
+  CHAT_MESSAGE: 'chat-message',
+  SHARE_VIDEO: 'share-video',
+  CLEAR_VIDEO: 'clear-video',
+  SHARE_LOCAL_FILE: 'share-local-file',
+  QUEUE_ADD: 'queue-add',
+  QUEUE_REMOVE: 'queue-remove',
+  QUEUE_PLAY: 'queue-play',
+  QUEUE_REORDER: 'queue-reorder',
+  QUEUE_NEXT: 'queue-next',
+  SUGGEST_VIDEO: 'suggest-video',
+  ACCEPT_SUGGESTION: 'accept-suggestion',
+  REJECT_SUGGESTION: 'reject-suggestion',
+  TOGGLE_READY: 'toggle-ready',
+  REACTION: 'reaction',
+  START_COUNTDOWN: 'start-countdown',
+
+  // Server → Client
+  USERS_UPDATE: 'users-update',
+  HOST_UPDATE: 'host-update',
+  VIDEO_UPDATE: 'video-update',
+  LOCAL_FILE_UPDATE: 'local-file-update',
+  READY_UPDATE: 'ready-update',
+  QUEUE_UPDATE: 'queue-update',
+  SUGGESTIONS_UPDATE: 'suggestions-update',
+  COUNTDOWN: 'countdown',
+  USER_JOINED: 'user-joined',
+} as const

@@ -15,7 +15,7 @@ import { registerTransferHandlers } from './handlers/transfer.handler'
 
 export const createSocketGateway = (httpServer: HttpServer): Server => {
   const io = new Server(httpServer, {
-    cors: { origin: env.clientUrl, methods: ['GET', 'POST'] },
+    cors: { origin: env.clientUrls, methods: ['GET', 'POST'] },
   })
 
   io.on('connection', (socket) => {

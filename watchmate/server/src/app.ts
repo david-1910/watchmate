@@ -13,7 +13,7 @@ import { notFoundHandler, errorHandler } from './shared/middleware/errorHandler'
 
 const app = express()
 
-app.use(cors({ origin: env.clientUrl }))
+app.use(cors({ origin: env.clientUrls }))
 app.use(express.json())
 
 app.use('/api/docs', swaggerUi.serve)

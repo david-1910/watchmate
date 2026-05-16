@@ -86,8 +86,8 @@ export const VideoArea = ({
               onSeeked={isHost ? onLocalVideoSeeked : undefined}
               onEnded={() => { if (autoplay && isHost && queueLength > 0) onPlayNextFromQueue() }}
             />
-            {/* Блокируем управление для зрителей */}
-            {!isHost && <div className="absolute inset-0 z-10" />}
+            {/* Блокируем управление для зрителей только во время воспроизведения */}
+            {!isHost && isPlaying && <div className="absolute inset-0 z-10" />}
             {isHost && (
               <button onClick={onClearVideo} className="absolute top-3 right-3 glass-button-secondary px-3 py-1 rounded-lg text-sm z-10 hover:bg-red-500/50">
                 ✕ Закрыть
@@ -106,8 +106,8 @@ export const VideoArea = ({
               onDestroy={onYTDestroy}
               onStateChange={onYTStateChange}
             />
-            {/* Блокируем управление для зрителей */}
-            {!isHost && <div className="absolute inset-0 z-10" />}
+            {/* Блокируем управление для зрителей только во время воспроизведения */}
+            {!isHost && isPlaying && <div className="absolute inset-0 z-10" />}
             {isHost && (
               <button onClick={onClearVideo} className="absolute top-3 right-3 glass-button-secondary px-3 py-1 rounded-lg text-sm z-10 hover:bg-red-500/50">
                 ✕ Закрыть

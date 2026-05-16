@@ -78,6 +78,7 @@ export const useVideoPlayer = (roomId: string | undefined, isHost: boolean) => {
   }, [])
 
   const onPlaybackUpdate = useCallback((update: PlaybackUpdate) => {
+    setIsPlaying(update.isPlaying)
     applyPlayback(update)
   }, [applyPlayback])
 

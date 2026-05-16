@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { getRoom, verifyRoomPassword, disconnectSocket, connectSocket } from '../../../shared/api'
 import { SOCKET_EVENTS } from '../../../shared/config'
 import { Button, Input } from '../../../shared/ui'
-import { playNotificationSound } from '../../../shared/lib'
+import { playNotificationSound, playChatSound, playRequestSound } from '../../../shared/lib'
 import { session } from '../../../entities/room'
 import { useRoomConnection } from '../../../features/room-connection'
 import { useChat } from '../../../features/chat'
@@ -36,6 +36,7 @@ function RoomPage() {
   const [sidebarVisible, setSidebarVisible] = useState(true)
   const [showExitModal, setShowExitModal] = useState(false)
   const [autoplay, setAutoplay] = useState(false)
+  const [chatBadge, setChatBadge] = useState(0)
 
   const needsPassword = isPrivate && !session.isPasswordVerified(roomId ?? '')
 
@@ -82,6 +83,27 @@ function RoomPage() {
     }
     prevSuggestionsLenRef.current = suggestions.length
   }, [suggestions.length, isHost])
+
+  const prevRequestsLenRef = useRef(0)
+  useEffect(() => {
+    if (isHost && requests.length > prevRequestsLenRef.current) {
+      playRequestSound()
+    }
+    prevRequestsLenRef.current = requests.length
+  }, [requests.length, isHost])
+
+  const prevMessagesLenRef = useRef(0)
+  useEffect(() => {
+    const len = messages.length
+    if (len > prevMessagesLenRef.current) {
+      const last = messages[len - 1]
+      if (last && last.userName !== userName) {
+        playChatSound()
+        setChatBadge((n) => n + (len - prevMessagesLenRef.current))
+      }
+    }
+    prevMessagesLenRef.current = len
+  }, [messages.length, userName])
 
   const handleJoin = async () => {
     if (!userName.trim()) return
@@ -162,11 +184,6 @@ function RoomPage() {
     )
   }
 
-  const requestLabel = (req: PlaybackRequest) => {
-    if (req.type === 'pause') return `${req.fromUserName} просит поставить на паузу`
-    if (req.type === 'play') return `${req.fromUserName} просит продолжить воспроизведение`
-    return `${req.fromUserName} хочет сменить видео: ${req.videoUrl}`
-  }
 
   const queuePanelProps = {
     queue, suggestions, queueInput, onQueueInputChange: setQueueInput,
@@ -194,22 +211,40 @@ function RoomPage() {
     <div className="h-[100dvh] bg-animated-gradient text-white flex flex-col overflow-hidden p-3 md:p-6 gap-3">
 
       {isHost && requests.length > 0 && (
-        <div className="fixed top-4 left-4 right-4 md:left-auto md:right-4 md:max-w-sm z-50 flex flex-col gap-2">
-          {requests.map((req) => (
-            <div key={req.id} className="glass-card rounded-xl p-3 flex flex-col gap-2 border border-purple-500/30">
-              <p className="text-sm text-gray-200">{requestLabel(req)}</p>
-              <div className="flex gap-2">
-                <button onClick={() => approveRequest(req)}
-                  className="flex-1 px-3 py-1 rounded-lg text-sm font-medium bg-purple-600/80 hover:bg-purple-600 transition-colors">
-                  Принять
-                </button>
-                <button onClick={() => dismissRequest(req.id)}
-                  className="flex-1 px-3 py-1 rounded-lg text-sm font-medium glass hover:bg-white/10 transition-colors">
-                  Отклонить
-                </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-md" />
+          <div className="relative z-10 flex flex-col gap-3 w-full max-w-sm">
+            {requests.map((req) => (
+              <div key={req.id} className="glass-card rounded-2xl p-5 flex flex-col gap-4 border border-purple-500/40 shadow-2xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-purple-500/30 flex items-center justify-center text-lg font-bold shrink-0">
+                    {req.fromUserName.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-white">{req.fromUserName}</p>
+                    <p className="text-sm text-gray-300">
+                      {req.type === 'pause' && 'просит поставить на паузу'}
+                      {req.type === 'play' && 'просит продолжить воспроизведение'}
+                      {req.type === 'change-video' && `хочет сменить видео`}
+                    </p>
+                    {req.type === 'change-video' && req.videoUrl && (
+                      <p className="text-xs text-purple-300 mt-0.5 truncate max-w-[220px]">{req.videoUrl}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => approveRequest(req)}
+                    className="flex-1 px-4 py-2 rounded-xl text-sm font-semibold bg-purple-600/80 hover:bg-purple-600 transition-colors">
+                    Принять
+                  </button>
+                  <button onClick={() => dismissRequest(req.id)}
+                    className="flex-1 px-4 py-2 rounded-xl text-sm font-semibold glass hover:bg-white/10 transition-colors">
+                    Отклонить
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
@@ -223,24 +258,37 @@ function RoomPage() {
         </div>
 
         {/* Кнопка открытия сайдбара — desktop inline, mobile floating */}
-        {!sidebarVisible && (
-          <>
-            <button onClick={() => setSidebarVisible(true)}
-              className="hidden md:flex glass-card w-10 h-10 rounded-xl items-center justify-center hover:bg-white/10 transition-all shrink-0 self-start"
-              title="Показать панель">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <button onClick={() => setSidebarVisible(true)}
-              className="md:hidden fixed right-0 top-1/2 -translate-y-1/2 z-30 glass-card px-1.5 py-3 rounded-l-xl hover:bg-white/10 transition-all"
-              title="Открыть панель">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-          </>
-        )}
+        {!sidebarVisible && (() => {
+          const totalBadge = chatBadge + (isHost ? suggestions.length : 0)
+          return (
+            <>
+              <button onClick={() => setSidebarVisible(true)}
+                className="relative hidden md:flex glass-card w-10 h-10 rounded-xl items-center justify-center hover:bg-white/10 transition-all shrink-0 self-start"
+                title="Показать панель">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                {totalBadge > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-purple-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+                    {totalBadge}
+                  </span>
+                )}
+              </button>
+              <button onClick={() => setSidebarVisible(true)}
+                className="relative md:hidden fixed right-0 top-1/2 -translate-y-1/2 z-30 glass-card px-1.5 py-3 rounded-l-xl hover:bg-white/10 transition-all"
+                title="Открыть панель">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                {totalBadge > 0 && (
+                  <span className="absolute -top-1.5 -right-0 min-w-[18px] h-[18px] px-1 bg-purple-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+                    {totalBadge}
+                  </span>
+                )}
+              </button>
+            </>
+          )
+        })()}
 
         {/* Сайдбар — desktop: inline, mobile: fixed overlay */}
         <RoomSidebar visible={sidebarVisible} onHide={() => setSidebarVisible(false)}
@@ -250,6 +298,8 @@ function RoomPage() {
           panelContent={isHost ? <QueuePanel {...queuePanelProps} /> : <SuggestPanel {...suggestPanelProps} />}
           panelLabel={isHost ? 'Очередь' : 'Предложить'}
           panelBadge={isHost ? suggestions.length : 0}
+          chatBadge={chatBadge}
+          onChatTabOpen={() => setChatBadge(0)}
           onTransferHost={(userId) => connectSocket().emit(SOCKET_EVENTS.TRANSFER_HOST, userId)} />
       </div>
 

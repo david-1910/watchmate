@@ -21,18 +21,26 @@ type Props = {
   panelContent: ReactNode
   panelLabel: string
   panelBadge?: number
+  chatBadge?: number
+  onChatTabOpen?: () => void
   onTransferHost: (userId: string) => void
 }
 
 export const RoomSidebar = ({
   visible, onHide, users, hostId, mySocketId, readyUsers,
   messages, draft, onDraftChange, onSend, messagesEndRef, currentUserName,
-  panelContent, panelLabel, panelBadge = 0, onTransferHost,
+  panelContent, panelLabel, panelBadge = 0, chatBadge = 0, onChatTabOpen, onTransferHost,
 }: Props) => {
   const [tab, setTab] = useState<Tab>('chat')
   const hostUserName = users.find((u) => u.userId === hostId)?.userName
 
-  const showBadge = panelBadge > 0 && tab !== 'panel'
+  const showPanelBadge = panelBadge > 0 && tab !== 'panel'
+  const showChatBadge = chatBadge > 0 && tab !== 'chat'
+
+  const handleTabChange = (newTab: Tab) => {
+    setTab(newTab)
+    if (newTab === 'chat') onChatTabOpen?.()
+  }
 
   return (
     <aside className={[
@@ -65,8 +73,13 @@ export const RoomSidebar = ({
             </button>
 
             {/* Вкладка: Чат */}
-            <button onClick={() => setTab('chat')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl transition-all ${tab === 'chat' ? 'bg-purple-500/30 text-white' : 'glass text-gray-400 hover:text-white hover:bg-white/5'}`}>
+            <button onClick={() => handleTabChange('chat')}
+              className={`relative flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl transition-all ${tab === 'chat' ? 'bg-purple-500/30 text-white' : 'glass text-gray-400 hover:text-white hover:bg-white/5'}`}>
+              {showChatBadge && (
+                <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 bg-purple-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+                  {chatBadge}
+                </span>
+              )}
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
@@ -74,9 +87,9 @@ export const RoomSidebar = ({
             </button>
 
             {/* Вкладка: Очередь / Предложить */}
-            <button onClick={() => setTab('panel')}
+            <button onClick={() => handleTabChange('panel')}
               className={`relative flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl transition-all text-sm ${tab === 'panel' ? 'bg-purple-500/30 text-white font-medium' : 'glass text-gray-400 hover:text-white hover:bg-white/5'}`}>
-              {showBadge && (
+              {showPanelBadge && (
                 <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 bg-purple-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
                   {panelBadge}
                 </span>
@@ -88,7 +101,7 @@ export const RoomSidebar = ({
             </button>
 
             {/* Вкладка: Участники */}
-            <button onClick={() => setTab('users')}
+            <button onClick={() => handleTabChange('users')}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl transition-all ${tab === 'users' ? 'bg-purple-500/30 text-white' : 'glass text-gray-400 hover:text-white hover:bg-white/5'}`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />

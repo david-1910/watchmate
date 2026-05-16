@@ -24,10 +24,10 @@ export const QueuePanel = ({
   dragOverIndex, onDragStart, onDragOver, onDragEnd,
   onAcceptSuggestion, onRejectSuggestion, autoplay, onToggleAutoplay,
 }: Props) => (
-  <aside className="w-64 glass-card rounded-2xl p-4 flex flex-col min-h-0">
-    <h3 className="text-lg font-bold mb-3">Очередь</h3>
+  <div className="w-full h-full flex flex-col min-h-0 overflow-hidden">
+    <h3 className="text-lg font-bold mb-3 shrink-0">Очередь</h3>
 
-    <div className="flex gap-2 mb-3">
+    <div className="flex gap-2 mb-3 shrink-0">
       <input type="text" placeholder="YouTube URL..." value={queueInput}
         onChange={(e) => onQueueInputChange(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && onAdd()}
@@ -35,7 +35,7 @@ export const QueuePanel = ({
       <button onClick={onAdd} className="px-3 py-2 bg-purple-500/30 hover:bg-purple-500/50 rounded-lg text-sm transition-colors">+</button>
     </div>
 
-    <div className="flex-1 overflow-y-auto space-y-2">
+    <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
       {queue.length === 0 ? (
         <p className="text-gray-500 text-sm text-center py-4">Очередь пуста</p>
       ) : (
@@ -56,9 +56,9 @@ export const QueuePanel = ({
 
     {suggestions.length > 0 && (
       <>
-        <div className="border-t border-white/10 my-3" />
-        <h4 className="text-sm font-bold text-gray-400 mb-2">Предложения</h4>
-        <div className="space-y-2">
+        <div className="border-t border-white/10 my-3 shrink-0" />
+        <h4 className="text-sm font-bold text-gray-400 mb-2 shrink-0">Предложения</h4>
+        <div className="space-y-2 shrink-0">
           {suggestions.map((s) => (
             <div key={s.id} className="glass rounded-lg p-2">
               <div className="flex items-center gap-2 mb-1">
@@ -75,7 +75,7 @@ export const QueuePanel = ({
       </>
     )}
 
-    <div className="border-t border-white/10 mt-3 pt-3 flex gap-2">
+    <div className="border-t border-white/10 mt-3 pt-3 flex gap-2 shrink-0">
       <button onClick={onToggleAutoplay} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm transition-colors ${autoplay ? 'bg-green-500/30 text-green-400' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
         {autoplay ? '⏸ Авто' : '▶ Авто'}
       </button>
@@ -84,5 +84,5 @@ export const QueuePanel = ({
         Далее →
       </button>
     </div>
-  </aside>
+  </div>
 )

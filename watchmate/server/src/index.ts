@@ -1,7 +1,6 @@
 import { httpServer } from './app'
+import { env } from './shared/config/env'
 
-const PORT = 3001
-
-httpServer.listen(PORT, () => {
-  console.log(`Сервер запущен: http://localhost:${PORT}`)
+httpServer.listen(env.port, () => {
+  console.log(`Сервер запущен: http://localhost:${env.port}`)
 })

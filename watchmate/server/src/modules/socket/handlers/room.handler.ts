@@ -31,6 +31,32 @@ const handleJoinRoom = (io: Server, socket: Socket, data: JoinRoomPayload): void
   io.to(roomId).emit(SOCKET_EVENTS.USERS_UPDATE, state.getRoomUsers(roomId))
   io.to(roomId).emit(SOCKET_EVENTS.HOST_UPDATE, state.roomHosts.get(roomId))
   socket.to(roomId).emit(SOCKET_EVENTS.USER_JOINED, { userId: socket.id, userName })
+
+  const history = state.roomMessages.get(roomId) ?? []
+  if (history.length > 0) socket.emit(SOCKET_EVENTS.CHAT_HISTORY, history)
+
+  const currentVideo = state.roomCurrentVideo.get(roomId)
+  if (currentVideo) socket.emit(SOCKET_EVENTS.VIDEO_UPDATE, currentVideo)
+
+  const queue = state.roomQueues.get(roomId) ?? []
+  if (queue.length > 0) socket.emit(SOCKET_EVENTS.QUEUE_UPDATE, queue)
+
+  const suggestions = state.roomSuggestions.get(roomId) ?? []
+  if (suggestions.length > 0) socket.emit(SOCKET_EVENTS.SUGGESTIONS_UPDATE, suggestions)
+
+  const readyUsersList = state.getRoomReadyUsers(roomId)
+  if (readyUsersList.length > 0) {
+    socket.emit(SOCKET_EVENTS.READY_UPDATE, { readyUsers: readyUsersList, allReady: false })
+  }
+
+  const playback = state.roomPlayback.get(roomId)
+  if (playback) {
+    const elapsed = playback.isPlaying ? (Date.now() - playback.updatedAt) / 1000 : 0
+    socket.emit(SOCKET_EVENTS.PLAYBACK_UPDATE, {
+      isPlaying: playback.isPlaying,
+      currentTime: playback.currentTime + elapsed,
+    })
+  }
 }
 
 const handleDisconnect = (io: Server, socket: Socket): void => {

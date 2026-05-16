@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { getRoom, verifyRoomPassword, disconnectSocket } from '../../../shared/api'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { getRoom, verifyRoomPassword, disconnectSocket, connectSocket } from '../../../shared/api'
+import { SOCKET_EVENTS } from '../../../shared/config'
 import { Button, Input } from '../../../shared/ui'
 import { session } from '../../../entities/room'
 import { useRoomConnection } from '../../../features/room-connection'
@@ -10,6 +11,8 @@ import { useVideoPlayer } from '../../../features/video-player'
 import { useQueue } from '../../../features/queue'
 import { useSuggestions } from '../../../features/suggestions'
 import { useReadySystem } from '../../../features/ready-system'
+import { usePlaybackRequests } from '../../../features/playback-requests'
+import type { PlaybackRequest } from '../../../features/playback-requests'
 import { RoomHeader } from '../../../widgets/room-header'
 import { RoomSidebar } from '../../../widgets/room-sidebar'
 import { VideoArea } from '../../../widgets/video-area'
@@ -21,6 +24,7 @@ type RoomStatus = 'loading' | 'not-found' | 'join' | 'ready'
 function RoomPage() {
   const { id: roomId } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const locationState = useLocation().state as { isPrivate?: boolean } | null
 
   const [roomStatus, setRoomStatus] = useState<RoomStatus>('loading')
   const [isPrivate, setIsPrivate] = useState(false)
@@ -36,25 +40,39 @@ function RoomPage() {
 
   useEffect(() => {
     if (!roomId) return
-    getRoom(roomId).then((room) => {
-      if (!room) { setRoomStatus('not-found'); return }
-      setIsPrivate(room.isPrivate)
+
+    const resolve = (privacyFlag: boolean) => {
+      setIsPrivate(privacyFlag)
       const isHost = !!session.getHostToken(roomId)
-      const passwordOk = !room.isPrivate || isHost || session.isPasswordVerified(roomId)
+      const passwordOk = !privacyFlag || isHost || session.isPasswordVerified(roomId)
       setRoomStatus(passwordOk && session.getUserName() ? 'ready' : 'join')
       if (passwordOk && session.getUserName()) setJoined(true)
-    })
-  }, [roomId])
+    }
+
+    if (locationState?.isPrivate !== undefined) {
+      resolve(locationState.isPrivate)
+    } else {
+      getRoom(roomId).then((room) => {
+        if (!room) { setRoomStatus('not-found'); return }
+        resolve(room.isPrivate)
+      })
+    }
+  }, [roomId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { users, hostId, mySocketId } = useRoomConnection(roomId, userName, joined)
+  const isHost = mySocketId === hostId
+
   const { messages, draft, setDraft, sendMessage, messagesEndRef } = useChat(roomId)
   const { reactions, sendReaction } = useReactions(roomId)
-  const { videoUrl, localVideo, isPlaying, countdown, inputUrl, setInputUrl, shareVideo, clearVideo } = useVideoPlayer(roomId)
+  const {
+    videoUrl, localVideo, isPlaying, countdown, inputUrl, setInputUrl, shareVideo, clearVideo, syncPlayback,
+    videoRef, onYTReady, onYTDestroy, onYTStateChange,
+    onLocalVideoPlay, onLocalVideoPause, onLocalVideoSeeked,
+  } = useVideoPlayer(roomId, isHost)
+  const { requests, sendRequest, dismissRequest } = usePlaybackRequests(roomId, isHost)
   const { queue, queueInput, setQueueInput, dragOverIndex, setDraggedIndex, setDragOverIndex, addToQueue, removeFromQueue, playFromQueue, playNext, handleDragEnd } = useQueue(roomId)
   const { suggestions, suggestInput, setSuggestInput, suggestVideo, acceptSuggestion, rejectSuggestion } = useSuggestions(roomId)
   const { readyUsers, toggleReady } = useReadySystem(roomId)
-
-  const isHost = mySocketId === hostId
 
   const handleJoin = async () => {
     if (!userName.trim()) return
@@ -67,6 +85,13 @@ function RoomPage() {
     session.setUserName(userName.trim())
     setJoined(true)
     setRoomStatus('ready')
+  }
+
+  const approveRequest = (req: PlaybackRequest) => {
+    if (req.type === 'pause') syncPlayback(false)
+    else if (req.type === 'play') syncPlayback(true)
+    else if (req.type === 'change-video' && req.videoUrl) shareVideo(req.videoUrl)
+    dismissRequest(req.id)
   }
 
   const handleExit = () => {
@@ -128,51 +153,100 @@ function RoomPage() {
     )
   }
 
+  const requestLabel = (req: PlaybackRequest) => {
+    if (req.type === 'pause') return `${req.fromUserName} просит поставить на паузу`
+    if (req.type === 'play') return `${req.fromUserName} просит продолжить воспроизведение`
+    return `${req.fromUserName} хочет сменить видео: ${req.videoUrl}`
+  }
+
+  const queuePanelProps = {
+    queue, suggestions, queueInput, onQueueInputChange: setQueueInput,
+    onAdd: addToQueue, onRemove: removeFromQueue, onPlay: playFromQueue, onNext: playNext,
+    dragOverIndex, onDragStart: setDraggedIndex, onDragOver: setDragOverIndex, onDragEnd: handleDragEnd,
+    onAcceptSuggestion: acceptSuggestion, onRejectSuggestion: rejectSuggestion,
+    autoplay, onToggleAutoplay: () => setAutoplay((p) => !p),
+  }
+
+  const suggestPanelProps = {
+    queue, suggestInput, onSuggestInputChange: setSuggestInput, onSuggest: suggestVideo,
+    onSendRequest: sendRequest, hasVideo: !!videoUrl || !!localVideo,
+  }
+
+  const videoAreaProps = {
+    videoUrl, localVideo, isPlaying, countdown, isHost, autoplay, reactions,
+    readyUsers, users, currentUserName: userName, inputUrl, onInputUrlChange: setInputUrl,
+    onShareVideo: shareVideo, onClearVideo: clearVideo, onToggleReady: toggleReady,
+    onSendReaction: sendReaction, onPlayNextFromQueue: playNext, queueLength: queue.length,
+    videoRef, onYTReady, onYTDestroy, onYTStateChange,
+    onLocalVideoPlay, onLocalVideoPause, onLocalVideoSeeked,
+  }
+
   return (
-    <div className="h-screen bg-animated-gradient text-white p-6 flex flex-col overflow-hidden">
+    <div className="h-[100dvh] bg-animated-gradient text-white flex flex-col overflow-hidden p-3 md:p-6 gap-3">
+
+      {isHost && requests.length > 0 && (
+        <div className="fixed top-4 left-4 right-4 md:left-auto md:right-4 md:max-w-sm z-50 flex flex-col gap-2">
+          {requests.map((req) => (
+            <div key={req.id} className="glass-card rounded-xl p-3 flex flex-col gap-2 border border-purple-500/30">
+              <p className="text-sm text-gray-200">{requestLabel(req)}</p>
+              <div className="flex gap-2">
+                <button onClick={() => approveRequest(req)}
+                  className="flex-1 px-3 py-1 rounded-lg text-sm font-medium bg-purple-600/80 hover:bg-purple-600 transition-colors">
+                  Принять
+                </button>
+                <button onClick={() => dismissRequest(req.id)}
+                  className="flex-1 px-3 py-1 rounded-lg text-sm font-medium glass hover:bg-white/10 transition-colors">
+                  Отклонить
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <RoomHeader roomId={roomId!} users={users} hostId={hostId} isPrivate={isPrivate} onExit={() => setShowExitModal(true)} />
 
-      <main className="flex gap-4 flex-1 min-h-0">
-        {isHost ? (
-          <QueuePanel queue={queue} suggestions={suggestions}
-            queueInput={queueInput} onQueueInputChange={setQueueInput}
-            onAdd={addToQueue} onRemove={removeFromQueue} onPlay={playFromQueue} onNext={playNext}
-            dragOverIndex={dragOverIndex}
-            onDragStart={setDraggedIndex} onDragOver={setDragOverIndex} onDragEnd={handleDragEnd}
-            onAcceptSuggestion={acceptSuggestion} onRejectSuggestion={rejectSuggestion}
-            autoplay={autoplay} onToggleAutoplay={() => setAutoplay((p) => !p)} />
-        ) : (
-          <SuggestPanel queue={queue} suggestInput={suggestInput}
-            onSuggestInputChange={setSuggestInput} onSuggest={suggestVideo} />
+      <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-3">
+
+        {/* Центр: видео */}
+        <div className="flex-1 min-h-0 flex flex-col">
+          <VideoArea {...videoAreaProps} />
+        </div>
+
+        {/* Кнопка открытия сайдбара — desktop inline, mobile floating */}
+        {!sidebarVisible && (
+          <>
+            <button onClick={() => setSidebarVisible(true)}
+              className="hidden md:flex glass-card w-10 h-10 rounded-xl items-center justify-center hover:bg-white/10 transition-all shrink-0 self-start"
+              title="Показать панель">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <button onClick={() => setSidebarVisible(true)}
+              className="md:hidden fixed right-0 top-1/2 -translate-y-1/2 z-30 glass-card px-1.5 py-3 rounded-l-xl hover:bg-white/10 transition-all"
+              title="Открыть панель">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+          </>
         )}
 
-        <VideoArea
-          videoUrl={videoUrl} localVideo={localVideo} isPlaying={isPlaying} countdown={countdown}
-          isHost={isHost} autoplay={autoplay} reactions={reactions}
-          readyUsers={readyUsers} users={users} currentUserName={userName}
-          inputUrl={inputUrl} onInputUrlChange={setInputUrl}
-          onShareVideo={shareVideo} onClearVideo={clearVideo}
-          onToggleReady={toggleReady} onSendReaction={sendReaction}
-          onPlayNextFromQueue={playNext} queueLength={queue.length} />
-
-        <button onClick={() => setSidebarVisible(true)}
-          className={`glass-card rounded-xl flex items-center justify-center hover:bg-white/10 transition-all duration-300 shrink-0 self-start ${sidebarVisible ? 'w-0 opacity-0 p-0 overflow-hidden' : 'w-10 h-10 opacity-100'}`}
-          title="Показать панель">
-          <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-
+        {/* Сайдбар — desktop: inline, mobile: fixed overlay */}
         <RoomSidebar visible={sidebarVisible} onHide={() => setSidebarVisible(false)}
           users={users} hostId={hostId} mySocketId={mySocketId} readyUsers={readyUsers}
           messages={messages} draft={draft} onDraftChange={setDraft}
-          onSend={sendMessage} messagesEndRef={messagesEndRef} currentUserName={userName} />
-      </main>
+          onSend={sendMessage} messagesEndRef={messagesEndRef} currentUserName={userName}
+          panelContent={isHost ? <QueuePanel {...queuePanelProps} /> : <SuggestPanel {...suggestPanelProps} />}
+          panelLabel={isHost ? 'Очередь' : 'Предложить'}
+          onTransferHost={(userId) => connectSocket().emit(SOCKET_EVENTS.TRANSFER_HOST, userId)} />
+      </div>
 
       {showExitModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowExitModal(false)} />
-          <div className="glass-card rounded-2xl p-8 z-10 flex flex-col items-center gap-6 max-w-sm">
+          <div className="glass-card rounded-2xl p-6 md:p-8 z-10 flex flex-col items-center gap-6 w-full max-w-sm">
             <h2 className="text-xl font-bold text-glow">Выйти из комнаты?</h2>
             <p className="text-gray-300 text-center">Вы уверены, что хотите покинуть комнату?</p>
             <div className="flex gap-4">

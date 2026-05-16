@@ -231,21 +231,22 @@ function HomePage() {
 
               {modalTab === 'create' && (
                 <>
-                  <div className="flex items-center justify-between p-3 glass rounded-xl">
-                    <div>
-                      <p className="font-medium">Приватная комната</p>
-                      <p className="text-xs text-gray-400">Потребуется пароль для входа</p>
-                    </div>
-                    <button onClick={() => setIsPrivate(!isPrivate)} className={`w-12 h-6 rounded-full transition-colors ${isPrivate ? 'bg-purple-500' : 'bg-gray-600'}`}>
-                      <div className={`w-5 h-5 bg-white rounded-full transition-transform ${isPrivate ? 'translate-x-6' : 'translate-x-0.5'}`} />
-                    </button>
-                  </div>
-                  {isPrivate && (
+                {isPrivate && (
                     <div>
                       <label className="text-sm text-gray-400 mb-1 block">Пароль комнаты</label>
                       <Input placeholder="Придумайте пароль" value={roomPassword} onChange={setRoomPassword} />
                     </div>
                   )}
+                  <div className="flex items-center justify-between p-3 glass rounded-xl">
+                    <div>
+                      <p className="font-medium">Приватная комната</p>
+                      <p className="text-xs text-gray-400">Потребуется пароль для входа</p>
+                    </div>
+                  
+                    <button onClick={() => setIsPrivate(!isPrivate)} className={`w-12 h-6 rounded-full transition-colors ${isPrivate ? 'bg-purple-500' : 'bg-gray-600'}`}>
+                      <div className={`w-5 h-5 bg-white rounded-full transition-transform ${isPrivate ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                    </button>
+                  </div>
                 </>
               )}
 

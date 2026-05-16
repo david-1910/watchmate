@@ -16,8 +16,14 @@ export const SOCKET_EVENTS = {
   TOGGLE_READY: 'toggle-ready',
   REACTION: 'reaction',
   START_COUNTDOWN: 'start-countdown',
+  PLAYBACK_SYNC: 'playback-sync',
+  PLAYBACK_REQUEST: 'playback-request',
+  PLAYBACK_REQUEST_NOTIFY: 'playback-request-notify',
+  TRANSFER_HOST: 'transfer-host',
 
   // Server → Client
+  PLAYBACK_UPDATE: 'playback-update',
+  CHAT_HISTORY: 'chat-history',
   USERS_UPDATE: 'users-update',
   HOST_UPDATE: 'host-update',
   VIDEO_UPDATE: 'video-update',

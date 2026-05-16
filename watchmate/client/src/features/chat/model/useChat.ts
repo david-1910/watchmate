@@ -18,7 +18,13 @@ export const useChat = (roomId: string | undefined) => {
     []
   )
 
+  const onHistory = useCallback(
+    (history: Message[]) => setMessages(history),
+    []
+  )
+
   useSocketEvent<Message>(SOCKET_EVENTS.CHAT_MESSAGE, onMessage, !!roomId)
+  useSocketEvent<Message[]>(SOCKET_EVENTS.CHAT_HISTORY, onHistory, !!roomId)
 
   const sendMessage = () => {
     if (!draft.trim() || !roomId) return

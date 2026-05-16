@@ -11,11 +11,13 @@ const handleShareVideo = (
   data: { roomId: string; videoUrl: string }
 ): void => {
   if (!isInRoom(socket, data.roomId)) return
+  state.roomCurrentVideo.set(data.roomId, data.videoUrl)
   io.to(data.roomId).emit(SOCKET_EVENTS.VIDEO_UPDATE, data.videoUrl)
 }
 
 const handleClearVideo = (io: Server, socket: Socket, roomId: string): void => {
   if (!isInRoom(socket, roomId)) return
+  state.roomCurrentVideo.delete(roomId)
   io.to(roomId).emit(SOCKET_EVENTS.VIDEO_UPDATE, '')
   io.to(roomId).emit(SOCKET_EVENTS.LOCAL_FILE_UPDATE, null)
 }

@@ -14,12 +14,9 @@ const handleChatMessage = (
   if (!data.message?.trim() || data.message.length > MAX_MESSAGE_LENGTH) return
 
   const userName = state.userNames.get(socket.id) ?? 'Аноним'
-  io.to(data.roomId).emit(SOCKET_EVENTS.CHAT_MESSAGE, {
-    userId: socket.id,
-    userName,
-    message: data.message.trim(),
-    timestamp: new Date(),
-  })
+  const msg = { userId: socket.id, userName, message: data.message.trim(), timestamp: new Date() }
+  state.addMessage(data.roomId, msg)
+  io.to(data.roomId).emit(SOCKET_EVENTS.CHAT_MESSAGE, msg)
 }
 
 export const registerChatHandlers = (io: Server, socket: Socket): void => {

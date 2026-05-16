@@ -46,7 +46,7 @@ export const useRoomModal = () => {
       const room = await createRoom({ isPrivate, password: isPrivate ? roomPassword.trim() : undefined })
       session.setHostToken(room.id, room.hostToken)
       session.setUserName(userName.trim())
-      navigate(`/room/${room.id}`)
+      navigate(`/room/${room.id}`, { state: { isPrivate: room.isPrivate } })
     } catch {
       setError('Не удалось создать комнату')
     } finally {
@@ -77,7 +77,7 @@ export const useRoomModal = () => {
       }
 
       session.setUserName(userName.trim())
-      navigate(`/room/${room.id}`)
+      navigate(`/room/${room.id}`, { state: { isPrivate: room.isPrivate } })
     } catch {
       setError('Ошибка подключения')
     } finally {

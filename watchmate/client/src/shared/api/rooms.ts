@@ -1,15 +1,21 @@
 import { http } from './http'
 
 type CreateRoomOptions = { isPrivate?: boolean; password?: string }
-type CreateRoomResponse = { id: string; hostToken: string; isPrivate: boolean }
-type RoomInfo = { id: string; createdAt: string; isPrivate: boolean }
 
-export const createRoom = (options: CreateRoomOptions = {}): Promise<CreateRoomResponse> =>
-  http.post<CreateRoomResponse>('/rooms', options)
+type CreateRoomData = { id: string; hostToken: string; isPrivate: boolean }
+type RoomInfoData = { id: string; createdAt: string; isPrivate: boolean }
+type VerifyData = { verified: boolean }
 
-export const getRoom = async (id: string): Promise<RoomInfo | null> => {
+type ApiSuccess<T> = { success: true; data: T }
+
+const unwrap = <T>(res: ApiSuccess<T>): T => res.data
+
+export const createRoom = (options: CreateRoomOptions = {}): Promise<CreateRoomData> =>
+  http.post<ApiSuccess<CreateRoomData>>('/rooms', options).then(unwrap)
+
+export const getRoom = async (id: string): Promise<RoomInfoData | null> => {
   try {
-    return await http.get<RoomInfo>(`/rooms/${id}`)
+    return await http.get<ApiSuccess<RoomInfoData>>(`/rooms/${id}`).then(unwrap)
   } catch {
     return null
   }
@@ -17,8 +23,8 @@ export const getRoom = async (id: string): Promise<RoomInfo | null> => {
 
 export const verifyRoomPassword = async (id: string, password: string): Promise<boolean> => {
   try {
-    await http.post(`/rooms/${id}/verify`, { password })
-    return true
+    const res = await http.post<ApiSuccess<VerifyData>>(`/rooms/${id}/verify`, { password })
+    return res.data.verified
   } catch {
     return false
   }

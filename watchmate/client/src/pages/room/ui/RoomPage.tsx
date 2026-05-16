@@ -34,6 +34,7 @@ function RoomPage() {
   const [passwordInput, setPasswordInput] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [sidebarVisible, setSidebarVisible] = useState(true)
+  const [sidebarTab, setSidebarTab] = useState<'chat' | 'panel' | 'users'>('chat')
   const [showExitModal, setShowExitModal] = useState(false)
   const [autoplay, setAutoplay] = useState(false)
   const [chatBadge, setChatBadge] = useState(0)
@@ -67,7 +68,7 @@ function RoomPage() {
   const { messages, draft, setDraft, sendMessage, messagesEndRef } = useChat(roomId)
   const { reactions, sendReaction } = useReactions(roomId)
   const {
-    videoUrl, localVideo, isPlaying, countdown, inputUrl, setInputUrl, shareVideo, clearVideo, syncPlayback,
+    videoUrl, localVideo, isPlaying, videoStarted, countdown, inputUrl, setInputUrl, shareVideo, clearVideo, syncPlayback,
     videoRef, onYTReady, onYTDestroy, onYTStateChange,
     onLocalVideoPlay, onLocalVideoPause, onLocalVideoSeeked,
   } = useVideoPlayer(roomId, isHost)
@@ -93,17 +94,18 @@ function RoomPage() {
   }, [requests.length, isHost])
 
   const prevMessagesLenRef = useRef(0)
+  const chatIsActive = sidebarVisible && sidebarTab === 'chat'
   useEffect(() => {
     const len = messages.length
     if (len > prevMessagesLenRef.current) {
       const last = messages[len - 1]
-      if (last && last.userName !== userName) {
+      if (last && last.userName !== userName && !chatIsActive) {
         playChatSound()
         setChatBadge((n) => n + (len - prevMessagesLenRef.current))
       }
     }
     prevMessagesLenRef.current = len
-  }, [messages.length, userName])
+  }, [messages.length, userName, chatIsActive])
 
   const handleJoin = async () => {
     if (!userName.trim()) return
@@ -199,7 +201,7 @@ function RoomPage() {
   }
 
   const videoAreaProps = {
-    videoUrl, localVideo, isPlaying, countdown, isHost, autoplay, reactions,
+    videoUrl, localVideo, isPlaying, videoStarted, countdown, isHost, autoplay, reactions,
     readyUsers, users, currentUserName: userName, inputUrl, onInputUrlChange: setInputUrl,
     onShareVideo: shareVideo, onClearVideo: clearVideo, onToggleReady: toggleReady,
     onSendReaction: sendReaction, onPlayNextFromQueue: playNext, queueLength: queue.length,
@@ -262,30 +264,37 @@ function RoomPage() {
           const totalBadge = chatBadge + (isHost ? suggestions.length : 0)
           return (
             <>
-              <button onClick={() => setSidebarVisible(true)}
-                className="relative hidden md:flex glass-card w-10 h-10 rounded-xl items-center justify-center hover:bg-white/10 transition-all shrink-0 self-start"
-                title="Показать панель">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
+              {/* Desktop */}
+              <div className="relative hidden md:block shrink-0 self-start">
+                <button onClick={() => setSidebarVisible(true)}
+                  className="glass-card w-10 h-10 rounded-xl flex items-center justify-center hover:bg-white/10 transition-all"
+                  title="Показать панель">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
                 {totalBadge > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-purple-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-purple-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none pointer-events-none">
                     {totalBadge}
                   </span>
                 )}
-              </button>
-              <button onClick={() => setSidebarVisible(true)}
-                className="relative md:hidden fixed right-0 top-1/2 -translate-y-1/2 z-30 glass-card px-1.5 py-3 rounded-l-xl hover:bg-white/10 transition-all"
-                title="Открыть панель">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                {totalBadge > 0 && (
-                  <span className="absolute -top-1.5 -right-0 min-w-[18px] h-[18px] px-1 bg-purple-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
-                    {totalBadge}
-                  </span>
-                )}
-              </button>
+              </div>
+
+              {/* Mobile — крупная кнопка сбоку */}
+              <div className="fixed right-0 top-1/2 -translate-y-1/2 z-30 md:hidden">
+                <button onClick={() => setSidebarVisible(true)}
+                  className="glass-card flex flex-col items-center justify-center gap-1 px-2 py-4 rounded-l-2xl hover:bg-white/10 transition-all"
+                  title="Открыть панель">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  {totalBadge > 0 && (
+                    <span className="min-w-[20px] h-[20px] px-1 bg-purple-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center leading-none">
+                      {totalBadge}
+                    </span>
+                  )}
+                </button>
+              </div>
             </>
           )
         })()}
@@ -299,7 +308,11 @@ function RoomPage() {
           panelLabel={isHost ? 'Очередь' : 'Предложить'}
           panelBadge={isHost ? suggestions.length : 0}
           chatBadge={chatBadge}
-          onChatTabOpen={() => setChatBadge(0)}
+          activeTab={sidebarTab}
+          onTabChange={(tab) => {
+            setSidebarTab(tab)
+            if (tab === 'chat') setChatBadge(0)
+          }}
           onTransferHost={(userId) => connectSocket().emit(SOCKET_EVENTS.TRANSFER_HOST, userId)} />
       </div>
 

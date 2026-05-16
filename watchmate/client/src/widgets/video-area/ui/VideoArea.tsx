@@ -10,6 +10,7 @@ type Props = {
   videoUrl: string
   localVideo: string | null
   isPlaying: boolean
+  videoStarted: boolean
   countdown: number | null
   isHost: boolean
   autoplay: boolean
@@ -53,7 +54,7 @@ const ReadyOverlay = ({ readyUsers, users, currentUserName, onToggle }: {
 }
 
 export const VideoArea = ({
-  videoUrl, localVideo, isPlaying, countdown, isHost, autoplay, reactions,
+  videoUrl, localVideo, isPlaying, videoStarted, countdown, isHost, autoplay, reactions,
   readyUsers, users, currentUserName, inputUrl, videoRef,
   onInputUrlChange, onShareVideo, onClearVideo, onToggleReady, onSendReaction,
   onPlayNextFromQueue, onYTReady, onYTDestroy, onYTStateChange,
@@ -93,7 +94,7 @@ export const VideoArea = ({
                 ✕ Закрыть
               </button>
             )}
-            {!isPlaying && (
+            {!videoStarted && (
               <ReadyOverlay readyUsers={readyUsers} users={users} currentUserName={currentUserName} onToggle={onToggleReady} />
             )}
           </>
@@ -113,7 +114,7 @@ export const VideoArea = ({
                 ✕ Закрыть
               </button>
             )}
-            {!isPlaying && (
+            {!videoStarted && (
               <ReadyOverlay readyUsers={readyUsers} users={users} currentUserName={currentUserName} onToggle={onToggleReady} />
             )}
           </>

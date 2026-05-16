@@ -12,6 +12,7 @@ export const useVideoPlayer = (roomId: string | undefined, isHost: boolean) => {
   const [videoUrl, setVideoUrl] = useState('')
   const [localVideo, setLocalVideo] = useState<string | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [videoStarted, setVideoStarted] = useState(false)
   const [countdown, setCountdown] = useState<number | null>(null)
   const [inputUrl, setInputUrl] = useState('')
 
@@ -52,6 +53,7 @@ export const useVideoPlayer = (roomId: string | undefined, isHost: boolean) => {
     setVideoUrl(url)
     setLocalVideo(null)
     setIsPlaying(false)
+    setVideoStarted(false)
     pendingPlaybackRef.current = null
   }, [])
 
@@ -59,6 +61,7 @@ export const useVideoPlayer = (roomId: string | undefined, isHost: boolean) => {
     if (fileName) setVideoUrl('')
     setLocalVideo(null)
     setIsPlaying(false)
+    setVideoStarted(false)
     pendingPlaybackRef.current = null
   }, [])
 
@@ -69,6 +72,7 @@ export const useVideoPlayer = (roomId: string | undefined, isHost: boolean) => {
         if (mountedRef.current) {
           setCountdown(null)
           setIsPlaying(true)
+          setVideoStarted(true)
           ytPlayerRef.current?.playVideo()
           if (videoRef.current) void videoRef.current.play()
         }
@@ -79,6 +83,8 @@ export const useVideoPlayer = (roomId: string | undefined, isHost: boolean) => {
 
   const onPlaybackUpdate = useCallback((update: PlaybackUpdate) => {
     setIsPlaying(update.isPlaying)
+    // currentTime > 0 — видео уже шло (пауза на середине), оверлей не нужен
+    if (update.isPlaying || update.currentTime > 0) setVideoStarted(true)
     applyPlayback(update)
   }, [applyPlayback])
 
@@ -151,7 +157,7 @@ export const useVideoPlayer = (roomId: string | undefined, isHost: boolean) => {
   }
 
   return {
-    videoUrl, localVideo, isPlaying, countdown,
+    videoUrl, localVideo, isPlaying, videoStarted, countdown,
     inputUrl, setInputUrl,
     shareVideo, clearVideo, syncPlayback,
     videoRef,

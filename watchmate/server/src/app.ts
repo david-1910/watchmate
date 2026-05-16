@@ -13,7 +13,12 @@ import { notFoundHandler, errorHandler } from './shared/middleware/errorHandler'
 
 const app = express()
 
-const corsOptions = { origin: true, credentials: true }
+const corsOptions = {
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}
 app.options('*', cors(corsOptions))
 app.use(cors(corsOptions))
 app.use(express.json())

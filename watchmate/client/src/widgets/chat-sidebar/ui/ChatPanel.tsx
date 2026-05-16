@@ -79,7 +79,7 @@ export const ChatPanel = ({ messages, draft, onDraftChange, onSend, messagesEndR
         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend() } }}
         className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 pr-12 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50 transition-colors resize-none overflow-y-auto no-scrollbar"
       />
-      <button onClick={onSend} className="absolute right-2 bottom-2 p-2 hover:bg-white/10 rounded-lg transition-colors">
+      <button onClick={() => { onSend(); textareaRef.current?.focus() }} className="absolute right-2 bottom-2 p-2 hover:bg-white/10 rounded-lg transition-colors">
         <img src="/send.svg" alt="Send" className="w-5 h-5" />
       </button>
     </div>

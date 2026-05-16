@@ -90,7 +90,7 @@ export const VideoArea = ({
             {/* Блокируем управление для зрителей только во время воспроизведения */}
             {!isHost && isPlaying && <div className="absolute inset-0 z-10" />}
             {isHost && (
-              <button onClick={onClearVideo} className="absolute top-3 right-3 glass-button-secondary px-3 py-1 rounded-lg text-sm z-10 hover:bg-red-500/50">
+              <button onClick={onClearVideo} className="absolute top-3 right-3 glass-button-secondary px-3 py-2 md:py-1 rounded-lg text-sm z-30 hover:bg-red-500/50 min-w-[44px] min-h-[44px] md:min-h-0 flex items-center justify-center">
                 ✕ Закрыть
               </button>
             )}
@@ -110,7 +110,7 @@ export const VideoArea = ({
             {/* Блокируем управление для зрителей только во время воспроизведения */}
             {!isHost && isPlaying && <div className="absolute inset-0 z-10" />}
             {isHost && (
-              <button onClick={onClearVideo} className="absolute top-3 right-3 glass-button-secondary px-3 py-1 rounded-lg text-sm z-10 hover:bg-red-500/50">
+              <button onClick={onClearVideo} className="absolute top-3 right-3 glass-button-secondary px-3 py-2 md:py-1 rounded-lg text-sm z-30 hover:bg-red-500/50 min-w-[44px] min-h-[44px] md:min-h-0 flex items-center justify-center">
                 ✕ Закрыть
               </button>
             )}
@@ -123,7 +123,7 @@ export const VideoArea = ({
             <iframe src={videoUrl} width="100%" height="100%" style={{ border: 'none' }}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
             {isHost && (
-              <button onClick={onClearVideo} className="absolute top-3 right-3 glass-button-secondary px-3 py-1 rounded-lg text-sm z-10 hover:bg-red-500/50">
+              <button onClick={onClearVideo} className="absolute top-3 right-3 glass-button-secondary px-3 py-2 md:py-1 rounded-lg text-sm z-30 hover:bg-red-500/50 min-w-[44px] min-h-[44px] md:min-h-0 flex items-center justify-center">
                 ✕ Закрыть
               </button>
             )}

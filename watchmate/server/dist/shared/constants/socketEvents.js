@@ -1,0 +1,38 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.SOCKET_EVENTS = void 0;
+exports.SOCKET_EVENTS = {
+    // Client → Server
+    JOIN_ROOM: 'join-room',
+    CHAT_MESSAGE: 'chat-message',
+    SHARE_VIDEO: 'share-video',
+    CLEAR_VIDEO: 'clear-video',
+    SHARE_LOCAL_FILE: 'share-local-file',
+    QUEUE_ADD: 'queue-add',
+    QUEUE_REMOVE: 'queue-remove',
+    QUEUE_PLAY: 'queue-play',
+    QUEUE_REORDER: 'queue-reorder',
+    QUEUE_NEXT: 'queue-next',
+    SUGGEST_VIDEO: 'suggest-video',
+    ACCEPT_SUGGESTION: 'accept-suggestion',
+    REJECT_SUGGESTION: 'reject-suggestion',
+    TOGGLE_READY: 'toggle-ready',
+    REACTION: 'reaction',
+    START_COUNTDOWN: 'start-countdown',
+    PLAYBACK_SYNC: 'playback-sync',
+    PLAYBACK_REQUEST: 'playback-request',
+    PLAYBACK_REQUEST_NOTIFY: 'playback-request-notify',
+    TRANSFER_HOST: 'transfer-host',
+    // Server → Client
+    PLAYBACK_UPDATE: 'playback-update',
+    CHAT_HISTORY: 'chat-history',
+    USERS_UPDATE: 'users-update',
+    HOST_UPDATE: 'host-update',
+    VIDEO_UPDATE: 'video-update',
+    LOCAL_FILE_UPDATE: 'local-file-update',
+    READY_UPDATE: 'ready-update',
+    QUEUE_UPDATE: 'queue-update',
+    SUGGESTIONS_UPDATE: 'suggestions-update',
+    COUNTDOWN: 'countdown',
+    USER_JOINED: 'user-joined',
+};

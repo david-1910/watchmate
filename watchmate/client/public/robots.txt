@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://watchmate-one.vercel.app/sitemap.xml

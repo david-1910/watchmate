@@ -29,6 +29,10 @@
   animation: gradient-shift 15s ease infinite;
 }
 
+.bg-animation-paused {
+  animation-play-state: paused;
+}
+
 /* Glassmorphism utilities */
 .glass {
   background: rgba(255, 255, 255, 0.05);

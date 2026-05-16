@@ -217,7 +217,7 @@ function RoomPage() {
   }
 
   return (
-    <div className="h-[100dvh] bg-animated-gradient text-white flex flex-col overflow-hidden p-3 md:p-6 gap-3">
+    <div className={`h-[100dvh] bg-animated-gradient text-white flex flex-col overflow-hidden p-3 md:p-6 gap-3 ${videoUrl || localVideo ? 'bg-animation-paused' : ''}`}>
 
       {isHost && requests.length > 0 && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

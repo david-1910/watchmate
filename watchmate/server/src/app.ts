@@ -13,7 +13,9 @@ import { notFoundHandler, errorHandler } from './shared/middleware/errorHandler'
 
 const app = express()
 
-app.use(cors({ origin: true, credentials: true }))
+const corsOptions = { origin: true, credentials: true }
+app.options('*', cors(corsOptions))
+app.use(cors(corsOptions))
 app.use(express.json())
 
 app.use('/api/docs', swaggerUi.serve)

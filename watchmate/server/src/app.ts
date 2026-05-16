@@ -13,6 +13,8 @@ import { notFoundHandler, errorHandler } from './shared/middleware/errorHandler'
 
 const app = express()
 
+console.log('CORS: manual headers v2', new Date().toISOString())
+
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', req.headers.origin ?? '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')

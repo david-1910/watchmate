@@ -4,53 +4,117 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- Primary -->
-    <title>WatchMate — совместный просмотр видео онлайн</title>
-    <meta name="description" content="WatchMate — смотрите YouTube и другие видео вместе с друзьями в реальном времени. Синхронный просмотр, чат, очередь видео и эмодзи-реакции." />
-    <meta name="keywords" content="совместный просмотр видео, watch party, смотреть вместе онлайн, синхронный просмотр, watchmate, вотчпати" />
+    <!-- Primary SEO -->
+    <title>WatchMate — смотреть YouTube вместе онлайн бесплатно</title>
+    <meta name="description" content="WatchMate — бесплатный сервис для совместного просмотра YouTube видео онлайн. Смотрите вместе с друзьями в реальном времени. Без регистрации, чат, реакции, синхронизация." />
+    <meta name="keywords" content="смотреть youtube вместе, совместный просмотр видео онлайн, watch party, вотч пати, синхронный просмотр, смотреть вместе онлайн бесплатно, watchmate, онлайн кинотеатр с друзьями" />
     <meta name="author" content="WatchMate" />
-    <link rel="canonical" href="https://watchmate-one.vercel.app" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://watchmate-one.vercel.app/" />
 
-    <!-- Open Graph / Facebook -->
+    <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://watchmate-one.vercel.app" />
-    <meta property="og:title" content="WatchMate — совместный просмотр видео онлайн" />
-    <meta property="og:description" content="Смотрите YouTube и другие видео вместе с друзьями в реальном времени. Создайте комнату за секунду — без регистрации." />
+    <meta property="og:url" content="https://watchmate-one.vercel.app/" />
+    <meta property="og:title" content="WatchMate — смотреть YouTube вместе онлайн" />
+    <meta property="og:description" content="Бесплатный сервис для совместного просмотра YouTube видео с друзьями. Без регистрации — создай комнату за 1 клик." />
     <meta property="og:image" content="https://watchmate-one.vercel.app/preview.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="WatchMate — совместный просмотр видео" />
     <meta property="og:locale" content="ru_RU" />
     <meta property="og:site_name" content="WatchMate" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="https://watchmate-one.vercel.app" />
-    <meta name="twitter:title" content="WatchMate — совместный просмотр видео онлайн" />
-    <meta name="twitter:description" content="Смотрите YouTube и другие видео вместе с друзьями в реальном времени. Без регистрации." />
+    <meta name="twitter:url" content="https://watchmate-one.vercel.app/" />
+    <meta name="twitter:title" content="WatchMate — смотреть YouTube вместе онлайн" />
+    <meta name="twitter:description" content="Бесплатный сервис для совместного просмотра YouTube видео с друзьями. Без регистрации." />
     <meta name="twitter:image" content="https://watchmate-one.vercel.app/preview.png" />
 
     <!-- Favicon -->
-    <link rel="icon" type="image/png" href="/logo-watchmate.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/logo-watchmate.png" />
     <link rel="apple-touch-icon" href="/logo-watchmate.png" />
-
-    <!-- Theme -->
     <meta name="theme-color" content="#1a1a3e" />
 
-    <!-- Structured Data -->
+    <!-- Preconnect для быстрой загрузки -->
+    <link rel="preconnect" href="https://www.youtube.com" />
+    <link rel="dns-prefetch" href="https://www.youtube.com" />
+
+    <!-- WebApplication Schema -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "WebApplication",
       "name": "WatchMate",
+      "alternateName": "ВотчМейт",
       "url": "https://watchmate-one.vercel.app",
-      "description": "Платформа для совместного просмотра видео онлайн в реальном времени с синхронизацией, чатом и реакциями.",
+      "description": "Бесплатный сервис для совместного просмотра YouTube видео онлайн в реальном времени с синхронизацией, чатом и реакциями.",
       "applicationCategory": "EntertainmentApplication",
       "operatingSystem": "Web",
+      "inLanguage": "ru",
+      "isAccessibleForFree": true,
       "offers": {
         "@type": "Offer",
         "price": "0",
         "priceCurrency": "RUB"
-      }
+      },
+      "featureList": [
+        "Синхронный просмотр YouTube видео",
+        "Чат в реальном времени",
+        "Эмодзи реакции",
+        "Очередь видео",
+        "Без регистрации"
+      ]
+    }
+    </script>
+
+    <!-- FAQ Schema — показывается в Google как раскрывающийся список -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Это бесплатно?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Да, WatchMate полностью бесплатен и без каких-либо ограничений."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Как смотреть YouTube вместе с друзьями онлайн?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Создайте комнату на WatchMate, поделитесь ссылкой с друзьями, вставьте ссылку на YouTube видео — и смотрите вместе синхронно."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Нужна ли регистрация?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Нет, регистрация не нужна. Просто введите имя и сразу начинайте смотреть вместе."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Какие видео поддерживаются?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "WatchMate поддерживает YouTube ссылки и локальные видеофайлы с вашего устройства."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Сколько человек может быть в одной комнате?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "В комнате может быть любое количество участников. Рекомендуем до 10-15 человек для лучшего опыта."
+          }
+        }
+      ]
     }
     </script>
   </head>

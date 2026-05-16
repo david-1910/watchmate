@@ -153,10 +153,10 @@ export const VideoArea = ({
           </div>
         )}
 
-        {/* Панель реакций — появляется при наведении снизу */}
+        {/* Панель реакций — на мобиле всегда, на десктопе при наведении */}
         <div className="absolute bottom-0 left-0 right-0 z-20 flex justify-center gap-2 md:gap-4 py-3 px-4
           bg-gradient-to-t from-black/60 to-transparent
-          opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0
+          md:opacity-0 md:group-hover:opacity-100 md:translate-y-2 md:group-hover:translate-y-0
           transition-all duration-200">
           {REACTION_EMOJIS.map((emoji) => (
             <button key={emoji} onClick={() => onSendReaction(emoji)}

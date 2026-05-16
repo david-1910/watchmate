@@ -37,7 +37,7 @@ function RoomPage() {
   const [sidebarTab, setSidebarTab] = useState<'chat' | 'panel' | 'users'>('chat')
   const [showExitModal, setShowExitModal] = useState(false)
   const [autoplay, setAutoplay] = useState(false)
-  const [chatBadge, setChatBadge] = useState(0)
+  const [chatSeenCount, setChatSeenCount] = useState(0)
 
   const needsPassword = isPrivate && !session.isPasswordVerified(roomId ?? '')
 
@@ -93,19 +93,26 @@ function RoomPage() {
     prevRequestsLenRef.current = requests.length
   }, [requests.length, isHost])
 
-  const prevMessagesLenRef = useRef(0)
   const chatIsActive = sidebarVisible && sidebarTab === 'chat'
+
+  // Сбрасываем счётчик при открытии чата
+  useEffect(() => {
+    if (chatIsActive) setChatSeenCount(messages.length)
+  }, [chatIsActive, messages.length])
+
+  // Звук при новом сообщении от другого пользователя
+  const prevMessagesLenRef = useRef(0)
   useEffect(() => {
     const len = messages.length
     if (len > prevMessagesLenRef.current) {
       const last = messages[len - 1]
-      if (last && last.userName !== userName && !chatIsActive) {
-        playChatSound()
-        setChatBadge((n) => n + (len - prevMessagesLenRef.current))
-      }
+      if (last && last.userName !== userName) playChatSound()
     }
     prevMessagesLenRef.current = len
-  }, [messages.length, userName, chatIsActive])
+  }, [messages.length, userName])
+
+  // Бейдж = сообщения от других с момента последнего просмотра чата
+  const chatBadge = messages.slice(chatSeenCount).filter(m => m.userName !== userName).length
 
   const handleJoin = async () => {
     if (!userName.trim()) return
@@ -309,10 +316,7 @@ function RoomPage() {
           panelBadge={isHost ? suggestions.length : 0}
           chatBadge={chatBadge}
           activeTab={sidebarTab}
-          onTabChange={(tab) => {
-            setSidebarTab(tab)
-            if (tab === 'chat') setChatBadge(0)
-          }}
+          onTabChange={setSidebarTab}
           onTransferHost={(userId) => connectSocket().emit(SOCKET_EVENTS.TRANSFER_HOST, userId)} />
       </div>
 

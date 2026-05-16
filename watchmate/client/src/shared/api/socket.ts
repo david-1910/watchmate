@@ -1,23 +1,18 @@
 import { io, Socket } from 'socket.io-client'
-
-const SOCKET_URL = `http://${window.location.hostname}:3001`
+import { SOCKET_URL } from '../config'
 
 let socket: Socket | null = null
 
-export function connectSocket(): Socket {
+export const connectSocket = (): Socket => {
   if (!socket) {
     socket = io(SOCKET_URL)
   }
   return socket
 }
 
-export function getSocket(): Socket | null {
-  return socket
-}
+export const getSocket = (): Socket | null => socket
 
-export function disconnectSocket(): void {
-  if (socket) {
-    socket.disconnect()
-    socket = null
-  }
+export const disconnectSocket = (): void => {
+  socket?.disconnect()
+  socket = null
 }

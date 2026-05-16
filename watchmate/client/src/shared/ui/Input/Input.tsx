@@ -1,19 +1,16 @@
-type InputProps = {
-  placeholder?: string
-  value: string
-  onChange: (value: string) => void
-  onKeyDown?: (e: React.KeyboardEvent) => void
+import { type InputHTMLAttributes } from 'react'
+
+type InputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange'> & {
+  onChange?: (value: string) => void
 }
 
-function Input({ placeholder, value, onChange, onKeyDown }: InputProps) {
+function Input({ onChange, className = '', ...rest }: InputProps) {
   return (
     <input
       type="text"
-      placeholder={placeholder}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      onKeyDown={onKeyDown}
-      className="w-[380px] px-4 py-3 rounded-xl text-white placeholder-gray-400 glass-input focus:outline-none"
+      onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+      className={`w-full px-4 py-3 rounded-xl text-white placeholder-gray-400 glass-input focus:outline-none ${className}`}
+      {...rest}
     />
   )
 }

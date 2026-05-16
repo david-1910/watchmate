@@ -1,33 +1,25 @@
-const API_URL = `http://${window.location.hostname}:3001`
+import { http } from './http'
 
-export async function createRoom(options?: { isPrivate?: boolean; password?: string }): Promise<{ id: string; hostToken: string; isPrivate: boolean }> {
-  const response = await fetch(`${API_URL}/rooms`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(options || {})
-  })
-  return response.json()
-}
+type CreateRoomOptions = { isPrivate?: boolean; password?: string }
+type CreateRoomResponse = { id: string; hostToken: string; isPrivate: boolean }
+type RoomInfo = { id: string; createdAt: string; isPrivate: boolean }
 
-export async function getRoom(
-  id: string
-): Promise<{ id: string; createdAt: string; isPrivate: boolean } | null> {
-  const response = await fetch(`${API_URL}/rooms/${id}`)
+export const createRoom = (options: CreateRoomOptions = {}): Promise<CreateRoomResponse> =>
+  http.post<CreateRoomResponse>('/rooms', options)
 
-  if (response.ok) {
-    return response.json()
+export const getRoom = async (id: string): Promise<RoomInfo | null> => {
+  try {
+    return await http.get<RoomInfo>(`/rooms/${id}`)
+  } catch {
+    return null
   }
-  return null
 }
 
-export async function verifyRoomPassword(
-  id: string,
-  password: string
-): Promise<boolean> {
-  const response = await fetch(`${API_URL}/rooms/${id}/verify`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password })
-  })
-  return response.ok
+export const verifyRoomPassword = async (id: string, password: string): Promise<boolean> => {
+  try {
+    await http.post(`/rooms/${id}/verify`, { password })
+    return true
+  } catch {
+    return false
+  }
 }

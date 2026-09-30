@@ -31,7 +31,7 @@ No test suite exists. Verify changes with `npm run build` in the affected projec
 
 Env: copy `.env.example` in each project. Client: `VITE_API_URL`, `VITE_SOCKET_URL`. Server: `PORT`, `TRUST_PROXY` (and test-only timer overrides). CORS is handled by a manual middleware (`shared/middleware/cors.ts`) that reflects the request Origin, so there is no client URL setting.
 
-Note: both `client/dist/` and `server/dist/` are committed to git. Vercel (`vercel.json`) builds and serves only the client as an SPA; the server is deployed separately.
+Note: both `client/dist/` and `server/dist/` are committed to git. Vercel builds and serves only the client as an SPA, configured by `vercel.json` at the **repo root** (`cd watchmate/client`, output `watchmate/client/dist`), so it works regardless of the Vercel Root Directory setting. The server is deployed separately (Render). Work only on `main`.
 
 ## Mandatory rules for AI agents
 - **Stay within the architecture.** The frontend follows Feature-Sliced Design. The backend follows transport → services → state. The detailed, binding rules are in `client/CLAUDE.md` and `server/CLAUDE.md`. Read the one for the side you work on before you change code.

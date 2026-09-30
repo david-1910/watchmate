@@ -1,0 +1,7 @@
+{
+  "installCommand": "cd watchmate/client && npm ci",
+  "buildCommand": "cd watchmate/client && npm run build",
+  "outputDirectory": "watchmate/client/dist",
+  "framework": null,
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}

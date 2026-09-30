@@ -73,19 +73,13 @@ const FullscreenButton = ({ active, onToggle, className = '' }: FullscreenButton
   )
 }
 
-// Панель управления видео и реакциями
+// Панель под видео: ничего не перекрывает в плеере
 export const ControlBar = (props: ControlBarProps) => {
   const { isHost, hasVideo, fullscreenSupported, fullscreenActive, onToggleFullscreen, onSendReaction } = props
   const showFullscreen = hasVideo && fullscreenSupported
 
   return (
-    <div
-      className={`rounded-2xl px-2.5 py-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 shrink-0 transition-all ${
-        fullscreenActive
-          ? 'bg-black/70 backdrop-blur-md border border-white/15 shadow-2xl'
-          : 'glass'
-      }`}
-    >
+    <div className="glass rounded-2xl px-2 py-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 shrink-0">
       {hasVideo && (
         <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-none">
           {isHost ? <HostControls {...props} /> : <ViewerControls {...props} />}
@@ -103,3 +97,4 @@ export const ControlBar = (props: ControlBarProps) => {
     </div>
   )
 }
+

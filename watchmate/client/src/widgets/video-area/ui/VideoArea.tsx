@@ -69,22 +69,17 @@ export const VideoArea = (props: Props) => {
   const fullscreen = useFullscreen<HTMLDivElement>()
 
   return (
-    // В полноэкранном режиме контейнер занимает 100% экрана, а панель управления накладывается поверх видео
+    // В полноэкранном режиме контейнер занимает весь экран вместе с панелью управления
     <div
       ref={fullscreen.ref}
       className={
         fullscreen.active
-          ? 'fixed inset-0 z-50 bg-black w-screen h-screen overflow-hidden flex flex-col justify-center items-center'
+          ? 'fixed inset-0 z-50 bg-black p-2 md:p-3 flex flex-col min-h-0 gap-2 w-screen h-screen'
           : 'h-full flex flex-col min-h-0 gap-2'
       }
     >
       <div
-        className={
-          fullscreen.active
-            ? 'w-full h-full flex flex-col items-center justify-center relative isolate overflow-hidden bg-black'
-            : 'glass-card rounded-2xl flex-1 min-h-0 flex flex-col items-center justify-center relative isolate overflow-hidden'
-        }
-      >
+        className="glass-card rounded-2xl flex-1 min-h-0 flex flex-col items-center justify-center relative isolate overflow-hidden">
         {/* Слои карточки идут по порядку в DOM (без z-index): плеер → щит → реакции → звук → готовность → отсчёт */}
         {source ? (
           <>
@@ -121,12 +116,12 @@ export const VideoArea = (props: Props) => {
           </>
         )}
 
-        {/* Быстрая кнопка выхода из полноэкранного режима сверху справа */}
+        {/* Быстрая кнопка выхода из полноэкранного режима на видео */}
         {fullscreen.active && (
           <button
             onClick={fullscreen.toggle}
             title="Выйти из полноэкранного режима"
-            className="absolute top-3 right-3 md:top-4 md:right-4 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/75 hover:bg-black/90 active:scale-95 text-white backdrop-blur-md border border-white/20 shadow-lg text-xs md:text-sm font-medium transition-all"
+            className="absolute top-3 right-3 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/75 hover:bg-black/90 active:scale-95 text-white backdrop-blur-md border border-white/20 shadow-lg text-xs md:text-sm font-medium transition-all"
           >
             <Minimize className="w-4 h-4" />
             <span>Выйти</span>
@@ -136,22 +131,10 @@ export const VideoArea = (props: Props) => {
         {countdown !== null && <CountdownOverlay count={countdown} />}
       </div>
 
-      {/* Панель управления: в обычном режиме снизу, в полноэкранном режиме — оверлей поверх видео снизу */}
-      <div
-        className={
-          fullscreen.active
-            ? 'absolute bottom-3 inset-x-3 md:bottom-5 md:inset-x-8 z-30 pointer-events-auto max-w-5xl mx-auto'
-            : 'shrink-0'
-        }
-      >
-        <ControlBar
-          {...props}
-          hasVideo={!!videoUrl}
-          fullscreenSupported={fullscreen.supported}
-          fullscreenActive={fullscreen.active}
-          onToggleFullscreen={fullscreen.toggle}
-        />
-      </div>
+      <ControlBar {...props} hasVideo={!!videoUrl}
+        fullscreenSupported={fullscreen.supported} fullscreenActive={fullscreen.active}
+        onToggleFullscreen={fullscreen.toggle} />
     </div>
   )
 }
+

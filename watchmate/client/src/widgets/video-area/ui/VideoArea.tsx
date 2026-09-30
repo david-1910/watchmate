@@ -14,6 +14,9 @@ type Props = Omit<ControlBarProps, 'hasVideo' | 'fullscreenSupported' | 'fullscr
   countdown: number | null
   // Сообщения чата — в полноэкранном режиме новые показываются поверх видео
   chatMessages: DisplayMessage[]
+  chatDraft: string
+  onChatDraftChange: (value: string) => void
+  onChatSend: () => void
   reactions: Reaction[]
   readyUsers: string[]
   viewersCount: number
@@ -66,7 +69,7 @@ const ViewerEmptyState = ({ onOpenQueue }: { onOpenQueue: () => void }) => (
 
 export const VideoArea = (props: Props) => {
   const {
-    videoUrl, isPlaying, videoStarted, countdown, chatMessages, isHost, reactions,
+    videoUrl, isPlaying, videoStarted, countdown, chatMessages, chatDraft, onChatDraftChange, onChatSend, isHost, reactions,
     readyUsers, viewersCount, allReady, myUserId, onToggleReady, onStartWatching,
     draft, onDraftChange, onPlayNow, onAddToQueue, onOpenQueue,
     onYTReady, onYTDestroy, onYTStateChange,
@@ -81,7 +84,9 @@ export const VideoArea = (props: Props) => {
   const [controlsVisible, setControlsVisible] = useState(true)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const autoHide = fullscreen.active && isPlaying
+  // Пока пишут в чат поверх видео — панель и поле ввода не прячем
+  const [chatTyping, setChatTyping] = useState(false)
+  const autoHide = fullscreen.active && isPlaying && !chatTyping
 
   const showControls = useCallback(() => {
     setControlsVisible(true)
@@ -186,6 +191,8 @@ export const VideoArea = (props: Props) => {
       {/* Новые сообщения чата — выше нашей панели и нижней строки плеера (время, прогресс); когда панель скрыта, опускаются ниже */}
       {fullscreen.active && (
         <ChatOverlay messages={chatMessages} myUserId={myUserId}
+          draft={chatDraft} onDraftChange={onChatDraftChange} onSend={onChatSend}
+          showInput={controlsVisible} onTypingChange={setChatTyping}
           className={`absolute left-4 md:left-8 transition-[bottom] duration-300 ${controlsVisible ? 'bottom-44 sm:bottom-36' : 'bottom-6'}`} />
       )}
 

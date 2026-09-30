@@ -81,7 +81,8 @@ export const ChatPanel = ({
         )}
       </div>
 
-      <div className="relative shrink-0">
+      {/* Над экранной клавиатурой поднимается только поле ввода, страница не сжимается */}
+      <div className="relative shrink-0 transition-transform duration-150" style={{ transform: 'translateY(calc(-1 * var(--keyboard-inset, 0px)))' }}>
         <textarea
           ref={textareaRef}
           placeholder="Сообщение..."

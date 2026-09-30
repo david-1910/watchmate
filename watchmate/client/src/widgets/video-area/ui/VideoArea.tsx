@@ -193,7 +193,7 @@ export const VideoArea = (props: Props) => {
         <ChatOverlay messages={chatMessages} myUserId={myUserId}
           draft={chatDraft} onDraftChange={onChatDraftChange} onSend={onChatSend}
           showInput={controlsVisible} onTypingChange={setChatTyping}
-          className={`absolute left-4 md:left-8 transition-[bottom] duration-300 ${controlsVisible ? 'bottom-44 sm:bottom-36' : 'bottom-6'}`} />
+          className={`absolute left-4 md:left-8 transition-[bottom] duration-300 ${controlsVisible ? 'bottom-36 sm:bottom-[6.5rem]' : 'bottom-6'}`} />
       )}
 
       {/* Панель управления: в обычном режиме снизу, в полноэкранном — плавающий оверлей поверх видео со скрытием через 3 секунды */}

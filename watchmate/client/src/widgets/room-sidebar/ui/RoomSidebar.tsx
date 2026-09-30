@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { Badge } from '@/shared/ui'
-import { useViewportHeight } from '@/shared/lib'
 import type { SidebarTab } from '../model/types'
 
 type Props = {
@@ -53,16 +52,13 @@ export const RoomSidebar = ({
   chatContent, panelContent, usersContent,
   panelLabel, usersCount, panelBadge = 0, chatBadge = 0,
 }: Props) => {
-  // Подстраиваем высоту только мобильной шторки под экранную клавиатуру
-  useViewportHeight(visible)
-
   const showPanelBadge = panelBadge > 0 && tab !== 'panel'
   const showChatBadge = chatBadge > 0 && tab !== 'chat'
 
   return (
     <aside className={[
       // mobile: fixed overlay справа, высота адаптируется под клавиатуру
-      'fixed top-[var(--app-top,0px)] right-0 h-[var(--app-height,100dvh)] z-drawer w-[85vw] max-w-sm rounded-l-2xl',
+      'fixed top-0 bottom-0 right-0 z-drawer w-[85vw] max-w-sm rounded-l-2xl',
       // desktop: сбрасываем fixed в inline
       'md:static md:top-auto md:h-auto md:z-auto md:max-w-none md:rounded-2xl',
       'glass-card flex flex-col min-h-0 transition-all duration-300 overflow-hidden',

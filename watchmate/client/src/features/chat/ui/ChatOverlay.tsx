@@ -70,6 +70,7 @@ export const ChatOverlay = ({ messages, myUserId, draft, onDraftChange, onSend, 
       ))}
       {inputVisible && (
         <form className="pointer-events-auto w-full flex items-center gap-1.5 mt-1"
+          style={{ transform: 'translateY(calc(-1 * var(--keyboard-inset, 0px)))' }}
           onSubmit={(e) => { e.preventDefault(); onSend() }}>
           <input value={draft} onChange={(e) => onDraftChange(e.target.value)} maxLength={MESSAGE_MAX_LENGTH}
             placeholder="Написать в чат…" aria-label="Сообщение в чат"

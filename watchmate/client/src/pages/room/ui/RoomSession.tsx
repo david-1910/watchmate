@@ -22,6 +22,7 @@ import { VideoArea } from '@/widgets/video-area'
 import { QueuePanel } from '@/widgets/queue-panel'
 import { SuggestPanel } from '@/widgets/suggest-panel'
 import { UsersPanel } from '@/widgets/users-panel'
+import { useKeyboardInset } from '@/shared/lib'
 import { useHostAlerts } from '../model/useHostAlerts'
 
 type Props = {
@@ -39,6 +40,8 @@ export const RoomSession = ({ roomId, onSessionEnded }: Props) => {
   const [showExitModal, setShowExitModal] = useState(false)
   // Один черновик ссылки: пустой экран хоста и вкладка «Очередь» — одно и то же поле
   const [videoDraft, setVideoDraft] = useState('')
+  // Клавиатура на телефоне не сжимает страницу — поднимаем над ней только поля ввода чата
+  useKeyboardInset()
 
   const { snapshot, connected, users, hostId, myUserId } = useRoomConnection(roomId, { onSessionEnded })
   const isHost = !!myUserId && myUserId === hostId

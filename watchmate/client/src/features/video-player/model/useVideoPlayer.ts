@@ -190,7 +190,11 @@ export const useVideoPlayer = (
   }, [])
 
   const onYTStateChange = useCallback((ytState: number, currentTime: number) => {
-    if (!isHostRef.current) return
+    if (!isHostRef.current) {
+      // Зритель не управляет воспроизведением: заиграло при паузе хоста (медиаклавиша, пробел в iframe) — снова пауза
+      if (ytState === YT_STATE.PLAYING && !expectedRef.current.playing) ytPlayerRef.current?.pauseVideo()
+      return
+    }
     if (ytState === YT_STATE.PLAYING || ytState === YT_STATE.PAUSED) {
       emitPlaybackSync(ytState === YT_STATE.PLAYING, currentTime)
     } else if (ytState === YT_STATE.ENDED) {

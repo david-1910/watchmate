@@ -113,7 +113,7 @@ export const RoomSession = ({ roomId, onSessionEnded }: Props) => {
             countdown={player.countdown} isHost={isHost} reactions={reactions}
             readyUsers={readyUsers} viewersCount={viewersCount} allReady={allReady} myUserId={myUserId}
             onToggleReady={toggleReady} onStartWatching={startWatching}
-            volume={player.volume} onVolumeChange={player.setVolume}
+            muted={player.muted} soundBlocked={player.soundBlocked} onToggleMute={player.toggleMute}
             onRequestPlayback={sendRequest}
             nextTitle={queue.queue[0]?.title ?? null} autoplay={queue.autoplay}
             onToggleAutoplay={queue.toggleAutoplay} onNext={queue.playNext} onCloseVideo={player.clearVideo}

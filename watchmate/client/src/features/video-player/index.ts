@@ -1,4 +1,3 @@
 export { useVideoPlayer } from './model/useVideoPlayer'
 export { CountdownOverlay } from './ui/CountdownOverlay'
-export { VolumeControl } from './ui/VolumeControl'
-
+export { SoundButton } from './ui/SoundButton'

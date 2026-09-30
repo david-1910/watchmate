@@ -29,7 +29,6 @@ export const useVideoPlayer = (
   const [countdown, setCountdown] = useState<number | null>(null)
   // Браузер не дал играть со звуком — играем без звука, пока пользователь не нажмёт «Включить звук»
   const [soundBlocked, setSoundBlocked] = useState(false)
-  const [volume, setVolumeState] = useState(100)
   const [muted, setMuted] = useState(false)
 
   const mountedRef = useRef(true)
@@ -109,15 +108,6 @@ export const useVideoPlayer = (
     }
   }, [enableSound])
 
-  // Громкость 0–100; ненулевая громкость снимает «без звука»
-  const setVolume = useCallback((value: number) => {
-    const yt = ytPlayerRef.current
-    setVolumeState(value)
-    if (!yt) return
-    yt.setVolume(value)
-    if (value > 0 && yt.isMuted()) enableSound()
-  }, [enableSound])
-
   const onVideoUpdate = useCallback((url: string) => {
     videoUrlRef.current = url
     setVideoUrl(url)
@@ -177,7 +167,6 @@ export const useVideoPlayer = (
 
   const onYTReady = useCallback((player: YTPlayer) => {
     ytPlayerRef.current = player
-    setVolumeState(player.getVolume())
     setMuted(player.isMuted())
     if (pendingPlaybackRef.current) {
       applyPlayback(pendingPlaybackRef.current)
@@ -220,7 +209,7 @@ export const useVideoPlayer = (
 
   return {
     videoUrl, isPlaying, videoStarted, countdown, soundBlocked, enableSound,
-    volume, muted, setVolume, toggleMute,
+    muted, toggleMute,
     shareVideo, clearVideo, syncPlayback,
     onYTReady, onYTDestroy, onYTStateChange,
   }

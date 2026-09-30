@@ -1,6 +1,6 @@
 import { Maximize, Minimize, Repeat, SkipForward, X } from 'lucide-react'
 import { ReactionBar } from '@/features/reactions'
-import { VolumeControl } from '@/features/video-player'
+import { SoundButton } from '@/features/video-player'
 import { RequestPlaybackButton, type RequestType } from '@/features/playback-requests'
 
 export type ControlBarProps = {
@@ -9,8 +9,9 @@ export type ControlBarProps = {
   videoStarted: boolean
   isPlaying: boolean
   // Зритель: звук и запросы к хосту
-  volume: number
-  onVolumeChange: (value: number) => void
+  muted: boolean
+  soundBlocked: boolean
+  onToggleMute: () => void
   onRequestPlayback: (type: RequestType) => void
   // Хост: очередь и видео
   nextTitle: string | null
@@ -51,7 +52,7 @@ const HostControls = ({ nextTitle, autoplay, onToggleAutoplay, onNext, onCloseVi
 
 const ViewerControls = (p: ControlBarProps) => (
   <>
-    <VolumeControl volume={p.volume} onVolumeChange={p.onVolumeChange} />
+    <SoundButton muted={p.muted} soundBlocked={p.soundBlocked} onToggle={p.onToggleMute} />
     {p.videoStarted && <RequestPlaybackButton isPlaying={p.isPlaying} onRequest={p.onRequestPlayback} />}
   </>
 )

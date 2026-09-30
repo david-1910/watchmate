@@ -62,7 +62,7 @@ const ViewerEmptyState = ({ onOpenQueue }: { onOpenQueue: () => void }) => (
 
 export const VideoArea = (props: Props) => {
   const {
-    videoUrl, isPlaying, videoStarted, countdown, isHost, reactions,
+    videoUrl, isPlaying, videoStarted, countdown, soundBlocked, isHost, reactions,
     readyUsers, viewersCount, allReady, myUserId, onToggleReady, onStartWatching,
     draft, onDraftChange, onPlayNow, onAddToQueue, onOpenQueue,
     onYTReady, onYTDestroy, onYTStateChange,
@@ -77,19 +77,22 @@ export const VideoArea = (props: Props) => {
   const [controlsVisible, setControlsVisible] = useState(true)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Пока браузер держит видео без звука, панель не прячем — на ней кнопка «Включить звук»
+  const autoHide = fullscreen.active && isPlaying && !soundBlocked
+
   const showControls = useCallback(() => {
     setControlsVisible(true)
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
 
-    if (fullscreen.active && isPlaying) {
+    if (autoHide) {
       hideTimerRef.current = setTimeout(() => {
         setControlsVisible(false)
       }, HIDE_CONTROLS_DELAY_MS)
     }
-  }, [fullscreen.active, isPlaying])
+  }, [autoHide])
 
   useEffect(() => {
-    if (!fullscreen.active || !isPlaying) {
+    if (!autoHide) {
       setControlsVisible(true)
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
       return
@@ -110,7 +113,7 @@ export const VideoArea = (props: Props) => {
       window.removeEventListener('keydown', onUserActivity)
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
     }
-  }, [fullscreen.active, isPlaying, showControls])
+  }, [autoHide, showControls])
 
   return (
     <div

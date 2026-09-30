@@ -1,6 +1,7 @@
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { ListPlus, Play, Tv } from 'lucide-react'
 import { LinkInput, RutubePlayer, YouTubePlayer } from '@/shared/ui'
-import { parseVideoLink, useFullscreen, validateVideoLink, type YTPlayer } from '@/shared/lib'
+import { parseVideoLink, useFullscreen, useWakeLock, validateVideoLink, type YTPlayer } from '@/shared/lib'
 import { FloatingReaction, type Reaction } from '@/entities/reaction'
 import { ReadyOverlay } from '@/features/ready-system'
 import { CountdownOverlay } from '@/features/video-player'
@@ -26,6 +27,8 @@ type Props = Omit<ControlBarProps, 'hasVideo' | 'fullscreenSupported' | 'fullscr
   onYTDestroy: () => void
   onYTStateChange: (state: number, currentTime: number) => void
 }
+
+const HIDE_CONTROLS_DELAY_MS = 3500
 
 const HostEmptyState = ({ draft, onDraftChange, onPlayNow, onAddToQueue }: Pick<Props, 'draft' | 'onDraftChange' | 'onPlayNow' | 'onAddToQueue'>) => (
   <div className="flex flex-col items-center gap-4 p-6 w-full max-w-xl">
@@ -59,7 +62,7 @@ const ViewerEmptyState = ({ onOpenQueue }: { onOpenQueue: () => void }) => (
 
 export const VideoArea = (props: Props) => {
   const {
-    videoUrl, videoStarted, countdown, isHost, reactions,
+    videoUrl, isPlaying, videoStarted, countdown, isHost, reactions,
     readyUsers, viewersCount, allReady, myUserId, onToggleReady, onStartWatching,
     draft, onDraftChange, onPlayNow, onAddToQueue, onOpenQueue,
     onYTReady, onYTDestroy, onYTStateChange,
@@ -67,13 +70,47 @@ export const VideoArea = (props: Props) => {
   const source = videoUrl ? parseVideoLink(videoUrl) : null
   const fullscreen = useFullscreen<HTMLDivElement>()
 
+  // Предотвращаем уход телефона в спящий режим во время проигрывания
+  useWakeLock(isPlaying)
+
+  // В полноэкранном режиме панель управления скрывается при бездействии и появляется при касании/движении мыши
+  const [controlsVisible, setControlsVisible] = useState(true)
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const showControls = useCallback(() => {
+    setControlsVisible(true)
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+
+    if (fullscreen.active && isPlaying) {
+      hideTimerRef.current = setTimeout(() => {
+        setControlsVisible(false)
+      }, HIDE_CONTROLS_DELAY_MS)
+    }
+  }, [fullscreen.active, isPlaying])
+
+  useEffect(() => {
+    if (!fullscreen.active || !isPlaying) {
+      setControlsVisible(true)
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+    } else {
+      showControls()
+    }
+    return () => {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+    }
+  }, [fullscreen.active, isPlaying, showControls])
+
   return (
-    // В полноэкранном режиме видео занимает 100% экрана, а панель управления — оверлей поверх видео
     <div
       ref={fullscreen.ref}
+      onMouseMove={showControls}
+      onTouchStart={showControls}
+      onClick={showControls}
       className={
         fullscreen.active
-          ? 'fixed inset-0 z-50 bg-black w-screen h-screen overflow-hidden relative flex flex-col items-center justify-center'
+          ? `fixed inset-0 z-50 bg-black w-screen h-screen overflow-hidden relative flex flex-col items-center justify-center ${
+              !controlsVisible ? 'cursor-none' : ''
+            }`
           : 'h-full flex flex-col min-h-0 gap-2 relative'
       }
     >
@@ -122,11 +159,13 @@ export const VideoArea = (props: Props) => {
         {countdown !== null && <CountdownOverlay count={countdown} />}
       </div>
 
-      {/* Панель управления: в обычном режиме снизу, в полноэкранном — оверлей поверх видео */}
+      {/* Панель управления: в обычном режиме снизу, в полноэкранном — плавающий оверлей поверх видео */}
       <div
         className={
           fullscreen.active
-            ? 'absolute bottom-3 inset-x-3 md:bottom-5 md:inset-x-8 z-30 pointer-events-auto max-w-5xl mx-auto flex justify-center w-[calc(100%-1.5rem)] md:w-[calc(100%-3rem)]'
+            ? `absolute bottom-3 inset-x-3 md:bottom-5 md:inset-x-8 z-30 max-w-5xl mx-auto flex justify-center w-[calc(100%-1.5rem)] md:w-[calc(100%-3rem)] transition-all duration-300 ${
+                controlsVisible ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-4 pointer-events-none'
+              }`
             : 'shrink-0'
         }
       >

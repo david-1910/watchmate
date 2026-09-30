@@ -13,4 +13,4 @@ export { copyToClipboard } from './clipboard'
 export { useFullscreen } from './useFullscreen'
 export { useDismiss } from './useDismiss'
 export { useViewportHeight } from './useViewportHeight'
-
+export { useWakeLock } from './useWakeLock'

@@ -60,7 +60,7 @@ const ViewerEmptyState = ({ onOpenQueue }: { onOpenQueue: () => void }) => (
 
 export const VideoArea = (props: Props) => {
   const {
-    videoUrl, isPlaying, videoStarted, countdown, soundBlocked, onEnableSound, isHost, reactions,
+    videoUrl, videoStarted, countdown, soundBlocked, onEnableSound, isHost, reactions,
     readyUsers, viewersCount, allReady, myUserId, onToggleReady, onStartWatching,
     draft, onDraftChange, onPlayNow, onAddToQueue, onOpenQueue,
     onYTReady, onYTDestroy, onYTStateChange,
@@ -84,7 +84,8 @@ export const VideoArea = (props: Props) => {
                 onReady={onYTReady} onDestroy={onYTDestroy} onStateChange={onYTStateChange} />
             )}
             {/* Зритель не управляет плеером — звук, полный экран и запросы вынесены в панель под видео */}
-            {!isHost && isPlaying && <div className="absolute inset-0" />}
+            {/* Щит всегда, а не только при воспроизведении — иначе на паузе хоста зритель запустил бы видео сам */}
+            {!isHost && <div className="absolute inset-0" />}
             {reactions.map((r) => <FloatingReaction key={r.id} reaction={r} />)}
             {soundBlocked && <EnableSoundButton onClick={onEnableSound} />}
             {/* На время отсчёта оверлей готовности скрыт — иначе «Начать» висит поверх цифр */}

@@ -1,44 +1,52 @@
-import { Room, QueueItem, Suggestion, RoomUser } from '../../shared/types'
+import { Room, Member, QueueItem, Suggestion, ChatLog, StoredPlayback } from '../../shared/types'
 
-type PlaybackState = { isPlaying: boolean; currentTime: number; updatedAt: number }
-
-const MAX_MESSAGES = 100
+type MemberRef = { roomId: string; userId: string }
 
 const rooms = new Map<string, Room>()
-const userNames = new Map<string, string>()
-const userRooms = new Map<string, string>()
-const readyUsers = new Map<string, Set<string>>()
+const roomIdsByCode = new Map<string, string>()
+const members = new Map<string, Map<string, Member>>()
+const memberTokens = new Map<string, MemberRef>()
 const roomHosts = new Map<string, string>()
+const readyUsers = new Map<string, Set<string>>()
+const activeCountdowns = new Set<string>()
 const roomQueues = new Map<string, QueueItem[]>()
 const roomSuggestions = new Map<string, Suggestion[]>()
-const roomMessages = new Map<string, object[]>()
+const roomMessages = new Map<string, ChatLog>()
 const roomCurrentVideo = new Map<string, string>()
-const roomPlayback = new Map<string, PlaybackState>()
+const roomPlayback = new Map<string, StoredPlayback>()
 
-const getRoomUsers = (roomId: string): RoomUser[] => {
-  const hostId = roomHosts.get(roomId)
-  const users: RoomUser[] = []
+// Участники комнаты в порядке входа
+const getMembers = (roomId: string): Member[] =>
+  [...(members.get(roomId)?.values() ?? [])].sort((a, b) => a.joinedAt - b.joinedAt)
 
-  userRooms.forEach((room, userId) => {
-    if (room === roomId) {
-      users.push({ userId, userName: userNames.get(userId) ?? 'Аноним' })
-    }
-  })
+const getOnlineMembers = (roomId: string): Member[] => getMembers(roomId).filter((m) => m.sockets > 0)
 
-  return users.sort((a, b) => {
-    if (a.userId === hostId) return -1
-    if (b.userId === hostId) return 1
-    return 0
-  })
+const getMember = (roomId: string, userId: string): Member | undefined => members.get(roomId)?.get(userId)
+
+const addMember = (roomId: string, member: Member): void => {
+  const roomMembers = members.get(roomId) ?? new Map<string, Member>()
+  roomMembers.set(member.userId, member)
+  members.set(roomId, roomMembers)
+  memberTokens.set(member.token, { roomId, userId: member.userId })
 }
 
-const getRoomReadyUsers = (roomId: string): string[] =>
-  Array.from(readyUsers.get(roomId) ?? [])
+const deleteMember = (roomId: string, userId: string): void => {
+  const member = getMember(roomId, userId)
+  if (!member) return
+  memberTokens.delete(member.token)
+  members.get(roomId)?.delete(userId)
+}
 
-const cleanupRoom = (roomId: string): void => {
+// Удаляет комнату со всеми её данными, включая токены участников
+const deleteRoom = (roomId: string): void => {
+  const room = rooms.get(roomId)
+  if (room) roomIdsByCode.delete(room.joinCode)
+  getMembers(roomId).forEach((m) => memberTokens.delete(m.token))
   rooms.delete(roomId)
+  members.delete(roomId)
   roomHosts.delete(roomId)
   readyUsers.delete(roomId)
+  activeCountdowns.delete(roomId)
   roomQueues.delete(roomId)
   roomSuggestions.delete(roomId)
   roomMessages.delete(roomId)
@@ -46,26 +54,22 @@ const cleanupRoom = (roomId: string): void => {
   roomPlayback.delete(roomId)
 }
 
-const addMessage = (roomId: string, message: object): void => {
-  const msgs = roomMessages.get(roomId) ?? []
-  msgs.push(message)
-  if (msgs.length > MAX_MESSAGES) msgs.shift()
-  roomMessages.set(roomId, msgs)
-}
-
 export const state = {
   rooms,
-  userNames,
-  userRooms,
-  readyUsers,
+  roomIdsByCode,
+  memberTokens,
   roomHosts,
+  readyUsers,
+  activeCountdowns,
   roomQueues,
   roomSuggestions,
   roomMessages,
   roomCurrentVideo,
   roomPlayback,
-  getRoomUsers,
-  getRoomReadyUsers,
-  cleanupRoom,
-  addMessage,
+  getMembers,
+  getOnlineMembers,
+  getMember,
+  addMember,
+  deleteMember,
+  deleteRoom,
 }

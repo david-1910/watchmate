@@ -1,183 +1,149 @@
 import { Router, Request, Response } from 'express'
 import { roomsService } from './rooms.service'
+import { requireRoom, requireHost, getRoom } from '../auth/auth.middleware'
+import { AppServer } from '../socket/socket.types'
 import { validate } from '../../shared/middleware/validate'
-import { sendSuccess, sendError } from '../../shared/utils/response'
+import { createRoomLimiter, codeLookupLimiter } from '../../shared/middleware/rateLimit'
+import { sendSuccess, sendNotFound, sendValidationError } from '../../shared/utils/response'
+import { SOCKET_EVENTS } from '../../shared/constants/socketEvents'
 
-const router = Router()
+export const createRoomsRouter = (io: AppServer): Router => {
+  const router = Router()
 
-/**
- * @swagger
- * tags:
- *   name: Rooms
- *   description: Управление комнатами
- */
-
-/**
- * @swagger
- * /rooms:
- *   post:
- *     summary: Создать комнату
- *     tags: [Rooms]
- *     requestBody:
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               isPrivate:
- *                 type: boolean
- *                 default: false
- *               password:
- *                 type: string
- *                 description: Обязателен если isPrivate = true
- *     responses:
- *       201:
- *         description: Комната создана
- *         content:
- *           application/json:
- *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/ApiSuccess'
- *                 - type: object
- *                   properties:
- *                     data:
- *                       type: object
- *                       properties:
- *                         id: { type: string, example: ABC123 }
- *                         hostToken: { type: string }
- *                         isPrivate: { type: boolean }
- *       400:
- *         description: Ошибка валидации
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ApiError'
- */
-router.post(
-  '/',
-  validate([
-    { field: 'isPrivate', type: 'boolean' },
-    { field: 'password', type: 'string', minLength: 1 },
-  ]),
-  (req: Request, res: Response) => {
-    const { isPrivate = false, password } = req.body ?? {}
-    if (isPrivate && !password?.trim()) {
-      sendError(res, 'Пароль обязателен для приватной комнаты', 'VALIDATION_ERROR', 400)
-      return
+  /**
+   * @swagger
+   * /rooms:
+   *   post:
+   *     summary: Создать комнату
+   *     tags: [Rooms]
+   *     requestBody:
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               isPrivate: { type: boolean, default: false }
+   *               password: { type: string, description: 'Обязателен, если isPrivate = true' }
+   *     responses:
+   *       201:
+   *         description: Комната создана
+   *         content:
+   *           application/json:
+   *             schema:
+   *               allOf:
+   *                 - $ref: '#/components/schemas/ApiSuccess'
+   *                 - type: object
+   *                   properties:
+   *                     data: { $ref: '#/components/schemas/CreatedRoom' }
+   *       400: { $ref: '#/components/responses/ValidationError' }
+   *       429: { $ref: '#/components/responses/RateLimit' }
+   */
+  router.post(
+    '/',
+    createRoomLimiter,
+    validate([
+      { field: 'isPrivate', type: 'boolean' },
+      { field: 'password', type: 'string', minLength: 1 },
+    ]),
+    (req: Request, res: Response) => {
+      const { isPrivate = false, password } = req.body ?? {}
+      if (isPrivate && !password?.trim()) {
+        sendValidationError(res, 'Пароль обязателен для приватной комнаты')
+        return
+      }
+      sendSuccess(res, roomsService.create({ isPrivate, password }), 201)
     }
-    const room = roomsService.create({ isPrivate: !!isPrivate, password })
-    sendSuccess(res, room, 201)
-  }
-)
+  )
 
-/**
- * @swagger
- * /rooms/{id}:
- *   get:
- *     summary: Получить информацию о комнате
- *     tags: [Rooms]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         example: ABC123
- *     responses:
- *       200:
- *         description: Информация о комнате
- *         content:
- *           application/json:
- *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/ApiSuccess'
- *                 - type: object
- *                   properties:
- *                     data:
- *                       $ref: '#/components/schemas/Room'
- *       404:
- *         description: Комната не найдена
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ApiError'
- */
-router.get('/:id', (req: Request, res: Response) => {
-  const id = req.params.id as string
-  const room = roomsService.findById(id)
-  if (!room) {
-    sendError(res, 'Комната не найдена', 'NOT_FOUND', 404)
-    return
-  }
-  sendSuccess(res, { id: room.id, createdAt: room.createdAt, isPrivate: room.isPrivate })
-})
-
-/**
- * @swagger
- * /rooms/{id}/verify:
- *   post:
- *     summary: Проверить пароль приватной комнаты
- *     tags: [Rooms]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [password]
- *             properties:
- *               password:
- *                 type: string
- *     responses:
- *       200:
- *         description: Пароль верный
- *         content:
- *           application/json:
- *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/ApiSuccess'
- *                 - type: object
- *                   properties:
- *                     data:
- *                       type: object
- *                       properties:
- *                         verified: { type: boolean, example: true }
- *       401:
- *         description: Неверный пароль
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ApiError'
- *       404:
- *         description: Комната не найдена
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ApiError'
- */
-router.post(
-  '/:id/verify',
-  validate([{ field: 'password', type: 'string', required: true, minLength: 1 }]),
-  (req: Request, res: Response) => {
-    const id = req.params.id as string
-    const { password } = req.body
-    const room = roomsService.findById(id)
+  /**
+   * @swagger
+   * /rooms/by-code/{code}:
+   *   get:
+   *     summary: Найти комнату по коду входа
+   *     description: 'Код нормализуется: верхний регистр, без дефисов и пробелов.'
+   *     tags: [Rooms]
+   *     parameters:
+   *       - { in: path, name: code, required: true, schema: { type: string, example: ABC-234 } }
+   *     responses:
+   *       200:
+   *         description: Комната найдена
+   *         content:
+   *           application/json:
+   *             schema:
+   *               allOf:
+   *                 - $ref: '#/components/schemas/ApiSuccess'
+   *                 - type: object
+   *                   properties:
+   *                     data: { $ref: '#/components/schemas/RoomInfo' }
+   *       404: { $ref: '#/components/responses/NotFound' }
+   *       429: { $ref: '#/components/responses/RateLimit' }
+   */
+  router.get('/by-code/:code', codeLookupLimiter, (req: Request, res: Response) => {
+    const room = roomsService.findByCode(String(req.params.code))
     if (!room) {
-      sendError(res, 'Комната не найдена', 'NOT_FOUND', 404)
+      sendNotFound(res, 'Комната не найдена')
       return
     }
-    if (roomsService.verifyPassword(id, password)) {
-      sendSuccess(res, { verified: true })
-    } else {
-      sendError(res, 'Неверный пароль', 'UNAUTHORIZED', 401)
-    }
-  }
-)
+    sendSuccess(res, { id: room.id, isPrivate: room.isPrivate })
+  })
 
-export { router as roomsRouter }
+  /**
+   * @swagger
+   * /rooms/{roomId}:
+   *   get:
+   *     summary: Получить информацию о комнате
+   *     tags: [Rooms]
+   *     parameters:
+   *       - $ref: '#/components/parameters/RoomId'
+   *     responses:
+   *       200:
+   *         description: Комната найдена
+   *         content:
+   *           application/json:
+   *             schema:
+   *               allOf:
+   *                 - $ref: '#/components/schemas/ApiSuccess'
+   *                 - type: object
+   *                   properties:
+   *                     data: { $ref: '#/components/schemas/RoomInfo' }
+   *       404: { $ref: '#/components/responses/NotFound' }
+   */
+  router.get('/:roomId', requireRoom, (_req: Request, res: Response) => {
+    const room = getRoom(res)
+    sendSuccess(res, { id: room.id, isPrivate: room.isPrivate })
+  })
+
+  /**
+   * @swagger
+   * /rooms/{roomId}/code:
+   *   post:
+   *     summary: Сменить код входа (только хост)
+   *     description: Старый код перестаёт работать сразу. Рассылает room-update.
+   *     tags: [Rooms]
+   *     security: [{ MemberToken: [] }]
+   *     parameters:
+   *       - $ref: '#/components/parameters/RoomId'
+   *     responses:
+   *       200:
+   *         description: Новый код
+   *         content:
+   *           application/json:
+   *             schema:
+   *               allOf:
+   *                 - $ref: '#/components/schemas/ApiSuccess'
+   *                 - type: object
+   *                   properties:
+   *                     data: { type: object, properties: { joinCode: { type: string } } }
+   *       401: { $ref: '#/components/responses/Unauthorized' }
+   *       403: { $ref: '#/components/responses/Forbidden' }
+   *       404: { $ref: '#/components/responses/NotFound' }
+   */
+  router.post('/:roomId/code', requireHost, (_req: Request, res: Response) => {
+    const room = getRoom(res)
+    const joinCode = roomsService.regenerateJoinCode(room)
+    io.to(room.id).emit(SOCKET_EVENTS.ROOM_UPDATE, { joinCode })
+    sendSuccess(res, { joinCode })
+  })
+
+  return router
+}

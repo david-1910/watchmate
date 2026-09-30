@@ -1,189 +1,90 @@
 import { Router, Request, Response } from 'express'
-import { Server } from 'socket.io'
 import { suggestionsService } from './suggestions.service'
-import { requireHost } from '../../shared/middleware/auth'
+import { requireMember, requireHost, getRoom, getMember } from '../auth/auth.middleware'
+import { AppServer } from '../socket/socket.types'
 import { validate } from '../../shared/middleware/validate'
-import { sendSuccess, sendError } from '../../shared/utils/response'
+import { sendSuccess, sendNotFound } from '../../shared/utils/response'
 import { SOCKET_EVENTS } from '../../shared/constants/socketEvents'
-import { state } from '../state/state'
+import { Suggestion } from '../../shared/types'
 
-export const createSuggestionsRouter = (io: Server): Router => {
+// /rooms/:roomId/suggestions
+export const createSuggestionsRouter = (io: AppServer): Router => {
   const router = Router({ mergeParams: true })
+
+  const respondWithSuggestions = (res: Response, roomId: string, suggestions: Suggestion[], status = 200): void => {
+    io.to(roomId).emit(SOCKET_EVENTS.SUGGESTIONS_UPDATE, suggestions)
+    sendSuccess(res, suggestions, status)
+  }
 
   /**
    * @swagger
    * /rooms/{roomId}/suggestions:
    *   get:
-   *     summary: Получить список предложений
+   *     summary: Получить предложения
    *     tags: [Suggestions]
+   *     security: [{ MemberToken: [] }]
    *     parameters:
-   *       - in: path
-   *         name: roomId
-   *         required: true
-   *         schema:
-   *           type: string
+   *       - $ref: '#/components/parameters/RoomId'
    *     responses:
-   *       200:
-   *         description: Список предложений
-   *         content:
-   *           application/json:
-   *             schema:
-   *               allOf:
-   *                 - $ref: '#/components/schemas/ApiSuccess'
-   *                 - type: object
-   *                   properties:
-   *                     data:
-   *                       type: array
-   *                       items:
-   *                         $ref: '#/components/schemas/Suggestion'
-   */
-  router.get('/', (req: Request, res: Response) => {
-    const roomId = (req.params.roomId as string).toUpperCase()
-    sendSuccess(res, suggestionsService.getSuggestions(roomId))
-  })
-
-  /**
-   * @swagger
-   * /rooms/{roomId}/suggestions:
+   *       200: { $ref: '#/components/responses/Suggestions' }
+   *       401: { $ref: '#/components/responses/Unauthorized' }
+   *       404: { $ref: '#/components/responses/NotFound' }
    *   post:
    *     summary: Предложить видео
+   *     description: Рассылает suggestions-update. suggestedById — userId участника.
    *     tags: [Suggestions]
+   *     security: [{ MemberToken: [] }]
    *     parameters:
-   *       - in: path
-   *         name: roomId
-   *         required: true
-   *         schema:
-   *           type: string
+   *       - $ref: '#/components/parameters/RoomId'
    *     requestBody:
    *       required: true
    *       content:
    *         application/json:
    *           schema:
    *             type: object
-   *             required: [url, userName]
+   *             required: [url]
    *             properties:
-   *               url:
-   *                 type: string
-   *               title:
-   *                 type: string
-   *               userName:
-   *                 type: string
+   *               url: { type: string }
+   *               title: { type: string }
    *     responses:
-   *       201:
-   *         description: Предложение добавлено
-   *         content:
-   *           application/json:
-   *             schema:
-   *               allOf:
-   *                 - $ref: '#/components/schemas/ApiSuccess'
-   *                 - type: object
-   *                   properties:
-   *                     data:
-   *                       type: array
-   *                       items:
-   *                         $ref: '#/components/schemas/Suggestion'
-   *       404:
-   *         description: Комната не найдена
-   *         content:
-   *           application/json:
-   *             schema:
-   *               $ref: '#/components/schemas/ApiError'
+   *       201: { $ref: '#/components/responses/Suggestions' }
+   *       400: { $ref: '#/components/responses/ValidationError' }
+   *       401: { $ref: '#/components/responses/Unauthorized' }
+   *       404: { $ref: '#/components/responses/NotFound' }
    */
+  router.get('/', requireMember, (_req: Request, res: Response) => {
+    sendSuccess(res, suggestionsService.getSuggestions(getRoom(res).id))
+  })
+
   router.post(
     '/',
+    requireMember,
     validate([
       { field: 'url', type: 'string', required: true, minLength: 1 },
       { field: 'title', type: 'string' },
-      { field: 'userName', type: 'string', required: true, minLength: 1 },
     ]),
     (req: Request, res: Response) => {
-      const roomId = (req.params.roomId as string).toUpperCase()
-      const { url, title, userName } = req.body
-
-      if (!state.rooms.get(roomId)) {
-        sendError(res, 'Комната не найдена', 'NOT_FOUND', 404)
-        return
-      }
-
-      const suggestions = suggestionsService.suggest(roomId, url, title, userName, 'rest-client')
-      io.to(roomId).emit(SOCKET_EVENTS.SUGGESTIONS_UPDATE, suggestions)
-      sendSuccess(res, suggestions, 201)
+      const roomId = getRoom(res).id
+      const { userId, userName } = getMember(res)
+      const suggestions = suggestionsService.suggest(roomId, { url: req.body.url, title: req.body.title, userName, userId })
+      respondWithSuggestions(res, roomId, suggestions, 201)
     }
   )
 
   /**
    * @swagger
-   * /rooms/{roomId}/suggestions/{suggestionId}/accept:
+   * /rooms/{roomId}/suggestions/{id}/accept:
    *   patch:
-   *     summary: Принять предложение (только хост)
+   *     summary: Принять предложение в очередь (только хост)
+   *     description: Рассылает queue-update и suggestions-update.
    *     tags: [Suggestions]
-   *     security:
-   *       - HostToken: []
+   *     security: [{ MemberToken: [] }]
    *     parameters:
-   *       - in: path
-   *         name: roomId
-   *         required: true
-   *         schema:
-   *           type: string
-   *       - in: path
-   *         name: suggestionId
-   *         required: true
-   *         schema:
-   *           type: string
+   *       - $ref: '#/components/parameters/RoomId'
+   *       - { in: path, name: id, required: true, schema: { type: string } }
    *     responses:
    *       200:
-   *         description: Предложение принято и добавлено в очередь
-   *         content:
-   *           application/json:
-   *             schema:
-   *               $ref: '#/components/schemas/ApiSuccess'
-   *       404:
-   *         description: Предложение не найдено
-   *         content:
-   *           application/json:
-   *             schema:
-   *               $ref: '#/components/schemas/ApiError'
-   *       403:
-   *         description: Только хост
-   *         content:
-   *           application/json:
-   *             schema:
-   *               $ref: '#/components/schemas/ApiError'
-   */
-  router.patch('/:suggestionId/accept', requireHost, (req: Request, res: Response) => {
-    const roomId = (req.params.roomId as string).toUpperCase()
-    const result = suggestionsService.accept(roomId, req.params.suggestionId as string)
-    if (!result) {
-      sendError(res, 'Предложение не найдено', 'NOT_FOUND', 404)
-      return
-    }
-    io.to(roomId).emit(SOCKET_EVENTS.QUEUE_UPDATE, result.queue)
-    io.to(roomId).emit(SOCKET_EVENTS.SUGGESTIONS_UPDATE, result.suggestions)
-    sendSuccess(res, result)
-  })
-
-  /**
-   * @swagger
-   * /rooms/{roomId}/suggestions/{suggestionId}:
-   *   delete:
-   *     summary: Отклонить предложение (только хост)
-   *     tags: [Suggestions]
-   *     security:
-   *       - HostToken: []
-   *     parameters:
-   *       - in: path
-   *         name: roomId
-   *         required: true
-   *         schema:
-   *           type: string
-   *       - in: path
-   *         name: suggestionId
-   *         required: true
-   *         schema:
-   *           type: string
-   *     responses:
-   *       200:
-   *         description: Предложение отклонено
+   *         description: Предложение принято
    *         content:
    *           application/json:
    *             schema:
@@ -192,21 +93,46 @@ export const createSuggestionsRouter = (io: Server): Router => {
    *                 - type: object
    *                   properties:
    *                     data:
-   *                       type: array
-   *                       items:
-   *                         $ref: '#/components/schemas/Suggestion'
-   *       403:
-   *         description: Только хост
-   *         content:
-   *           application/json:
-   *             schema:
-   *               $ref: '#/components/schemas/ApiError'
+   *                       type: object
+   *                       properties:
+   *                         queue: { type: array, items: { $ref: '#/components/schemas/QueueItem' } }
+   *                         suggestions: { type: array, items: { $ref: '#/components/schemas/Suggestion' } }
+   *       401: { $ref: '#/components/responses/Unauthorized' }
+   *       403: { $ref: '#/components/responses/Forbidden' }
+   *       404: { $ref: '#/components/responses/NotFound' }
    */
-  router.delete('/:suggestionId', requireHost, (req: Request, res: Response) => {
-    const roomId = (req.params.roomId as string).toUpperCase()
-    const suggestions = suggestionsService.reject(roomId, req.params.suggestionId as string)
-    io.to(roomId).emit(SOCKET_EVENTS.SUGGESTIONS_UPDATE, suggestions)
-    sendSuccess(res, suggestions)
+  router.patch('/:id/accept', requireHost, (req: Request, res: Response) => {
+    const roomId = getRoom(res).id
+    const result = suggestionsService.accept(roomId, String(req.params.id))
+    if (!result) {
+      sendNotFound(res, 'Предложение не найдено')
+      return
+    }
+    io.to(roomId).emit(SOCKET_EVENTS.QUEUE_UPDATE, result.queue)
+    io.to(roomId).emit(SOCKET_EVENTS.SUGGESTIONS_UPDATE, result.suggestions)
+    sendSuccess(res, { queue: result.queue, suggestions: result.suggestions })
+  })
+
+  /**
+   * @swagger
+   * /rooms/{roomId}/suggestions/{id}:
+   *   delete:
+   *     summary: Отклонить предложение (только хост)
+   *     description: Рассылает suggestions-update.
+   *     tags: [Suggestions]
+   *     security: [{ MemberToken: [] }]
+   *     parameters:
+   *       - $ref: '#/components/parameters/RoomId'
+   *       - { in: path, name: id, required: true, schema: { type: string } }
+   *     responses:
+   *       200: { $ref: '#/components/responses/Suggestions' }
+   *       401: { $ref: '#/components/responses/Unauthorized' }
+   *       403: { $ref: '#/components/responses/Forbidden' }
+   *       404: { $ref: '#/components/responses/NotFound' }
+   */
+  router.delete('/:id', requireHost, (req: Request, res: Response) => {
+    const roomId = getRoom(res).id
+    respondWithSuggestions(res, roomId, suggestionsService.reject(roomId, String(req.params.id)))
   })
 
   return router

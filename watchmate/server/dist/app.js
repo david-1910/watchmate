@@ -5,63 +5,43 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.httpServer = void 0;
 const express_1 = __importDefault(require("express"));
-const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const http_1 = require("http");
 const swagger_ui_express_1 = __importDefault(require("swagger-ui-express"));
+const env_1 = require("./shared/config/env");
 const swagger_1 = require("./shared/config/swagger");
+const cors_1 = require("./shared/middleware/cors");
+const rateLimit_1 = require("./shared/middleware/rateLimit");
+const errorHandler_1 = require("./shared/middleware/errorHandler");
+const socket_gateway_1 = require("./modules/socket/socket.gateway");
 const rooms_router_1 = require("./modules/rooms/rooms.router");
-const rooms_users_router_1 = require("./modules/rooms/rooms.users.router");
+const members_router_1 = require("./modules/members/members.router");
+const snapshot_router_1 = require("./modules/snapshot/snapshot.router");
+const chat_router_1 = require("./modules/chat/chat.router");
+const video_router_1 = require("./modules/playback/video.router");
 const queue_router_1 = require("./modules/queue/queue.router");
 const suggestions_router_1 = require("./modules/suggestions/suggestions.router");
-const socket_gateway_1 = require("./modules/socket/socket.gateway");
-const errorHandler_1 = require("./shared/middleware/errorHandler");
+const ready_router_1 = require("./modules/ready/ready.router");
 const app = (0, express_1.default)();
-app.set('trust proxy', 1);
-app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', req.headers.origin ?? '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
-    }
-    next();
-});
+// За прокси req.ip (и лимиты запросов) берут IP клиента из X-Forwarded-For
+app.set('trust proxy', env_1.env.trustProxy ? 1 : false);
+app.use(cors_1.cors);
 app.use(express_1.default.json({ limit: '10kb' }));
-// Общий лимит: 200 запросов за 15 минут с одного IP
-const globalLimiter = (0, express_rate_limit_1.default)({
-    windowMs: 15 * 60 * 1000,
-    max: 200,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { success: false, error: { message: 'Слишком много запросов', code: 'RATE_LIMIT' } },
-});
-// Создание комнат: 10 комнат в час (защита от спама памяти)
-const createRoomLimiter = (0, express_rate_limit_1.default)({
-    windowMs: 60 * 60 * 1000,
-    max: 10,
-    message: { success: false, error: { message: 'Слишком много комнат создано', code: 'RATE_LIMIT' } },
-});
-// Проверка пароля: 5 попыток за 15 минут (защита от брутфорса)
-const verifyLimiter = (0, express_rate_limit_1.default)({
-    windowMs: 15 * 60 * 1000,
-    max: 5,
-    message: { success: false, error: { message: 'Слишком много попыток входа', code: 'RATE_LIMIT' } },
-});
-app.use('/api/', globalLimiter);
+app.use('/api/', rateLimit_1.globalLimiter);
 app.use('/api/docs', swagger_ui_express_1.default.serve);
 app.get('/api/docs', swagger_ui_express_1.default.setup(swagger_1.swaggerSpec));
 const httpServer = (0, http_1.createServer)(app);
 exports.httpServer = httpServer;
 const io = (0, socket_gateway_1.createSocketGateway)(httpServer);
 const api = express_1.default.Router();
-api.post('/rooms', createRoomLimiter, (req, res, next) => next());
-api.post('/rooms/:roomId/verify', verifyLimiter, (req, res, next) => next());
-api.use('/rooms', rooms_router_1.roomsRouter);
-api.use('/rooms/:roomId/users', rooms_users_router_1.roomUsersRouter);
+api.use('/rooms', (0, rooms_router_1.createRoomsRouter)(io));
+api.use('/rooms/:roomId/members', members_router_1.membersRouter);
+api.use('/rooms/:roomId/host', members_router_1.hostRouter);
+api.use('/rooms/:roomId/state', snapshot_router_1.snapshotRouter);
+api.use('/rooms/:roomId/messages', (0, chat_router_1.createChatRouter)(io));
+api.use('/rooms/:roomId/video', (0, video_router_1.createVideoRouter)(io));
 api.use('/rooms/:roomId/queue', (0, queue_router_1.createQueueRouter)(io));
 api.use('/rooms/:roomId/suggestions', (0, suggestions_router_1.createSuggestionsRouter)(io));
+api.use('/rooms/:roomId/ready', (0, ready_router_1.createReadyRouter)(io));
 app.use('/api/v1', api);
 app.use(errorHandler_1.notFoundHandler);
 app.use(errorHandler_1.errorHandler);

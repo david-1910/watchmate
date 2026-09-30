@@ -10,7 +10,9 @@ const beep = (freq: number, duration: number, volume = 0.3) => {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration)
     osc.start(ctx.currentTime)
     osc.stop(ctx.currentTime + duration)
-  } catch {}
+  } catch {
+    // AudioContext недоступен (старый браузер / нет разрешения) — звук не критичен
+  }
 }
 
 export const playNotificationSound = () => beep(880, 0.35)

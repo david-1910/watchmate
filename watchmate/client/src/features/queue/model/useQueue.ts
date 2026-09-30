@@ -1,56 +1,65 @@
-import { useState, useCallback } from 'react'
-import { connectSocket } from '../../../shared/api'
-import { useSocketEvent } from '../../../shared/lib'
-import { SOCKET_EVENTS } from '../../../shared/config'
-import type { QueueItem } from '../../../shared/types'
+import { useState, useCallback, useEffect } from 'react'
+import { useSocketEvent } from '@/shared/lib'
+import { SOCKET_EVENTS } from '@/shared/config'
+import {
+  addToQueue as addToQueueRequest,
+  removeFromQueue as removeFromQueueRequest,
+  playQueueItem,
+  playNextInQueue,
+  reorderQueue,
+  type QueueItem,
+  type RoomSnapshot,
+} from '@/entities/room'
 
-export const useQueue = (roomId: string | undefined) => {
+// Ошибки команд игнорируем: актуальная очередь приходит через queue-update
+const ignore = () => {}
+
+export const useQueue = (roomId: string, snapshot: RoomSnapshot | null) => {
   const [queue, setQueue] = useState<QueueItem[]>([])
-  const [queueInput, setQueueInput] = useState('')
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [autoplay, setAutoplay] = useState(false)
+
+  useEffect(() => {
+    if (snapshot) setQueue(snapshot.queue)
+  }, [snapshot])
 
   const onQueueUpdate = useCallback((q: QueueItem[]) => setQueue(q), [])
-  useSocketEvent<QueueItem[]>(SOCKET_EVENTS.QUEUE_UPDATE, onQueueUpdate, !!roomId)
+  useSocketEvent(SOCKET_EVENTS.QUEUE_UPDATE, onQueueUpdate)
 
-  const addToQueue = () => {
-    if (!queueInput.trim() || !roomId) return
-    connectSocket().emit(SOCKET_EVENTS.QUEUE_ADD, { roomId, url: queueInput.trim(), title: queueInput.trim() })
-    setQueueInput('')
+  const addToQueue = (url: string) => {
+    addToQueueRequest(roomId, url, url).catch(ignore)
   }
 
   const removeFromQueue = (itemId: string) => {
-    if (!roomId) return
-    connectSocket().emit(SOCKET_EVENTS.QUEUE_REMOVE, { roomId, itemId })
+    removeFromQueueRequest(roomId, itemId).catch(ignore)
   }
 
   const playFromQueue = (itemId: string) => {
-    if (!roomId) return
-    connectSocket().emit(SOCKET_EVENTS.QUEUE_PLAY, { roomId, itemId })
+    playQueueItem(roomId, itemId).catch(ignore)
   }
 
-  const playNext = () => {
-    if (!roomId) return
-    connectSocket().emit(SOCKET_EVENTS.QUEUE_NEXT, { roomId })
-  }
+  const playNext = useCallback(() => {
+    playNextInQueue(roomId).catch(ignore)
+  }, [roomId])
 
-  const reorderQueue = (fromIndex: number, toIndex: number) => {
-    if (!roomId || fromIndex === toIndex) return
-    connectSocket().emit(SOCKET_EVENTS.QUEUE_REORDER, { roomId, fromIndex, toIndex })
-  }
+  // Автопереход к следующему видео по окончании текущего
+  const handleVideoEnded = useCallback(() => {
+    if (autoplay && queue.length > 0) playNext()
+  }, [autoplay, queue.length, playNext])
 
   const handleDragEnd = () => {
-    if (draggedIndex !== null && dragOverIndex !== null) {
-      reorderQueue(draggedIndex, dragOverIndex)
+    if (draggedIndex !== null && dragOverIndex !== null && draggedIndex !== dragOverIndex) {
+      reorderQueue(roomId, draggedIndex, dragOverIndex).catch(ignore)
     }
     setDraggedIndex(null)
     setDragOverIndex(null)
   }
 
   return {
-    queue, queueInput, setQueueInput,
-    draggedIndex, setDraggedIndex,
-    dragOverIndex, setDragOverIndex,
+    queue,
+    dragOverIndex, setDraggedIndex, setDragOverIndex,
     addToQueue, removeFromQueue, playFromQueue, playNext, handleDragEnd,
+    autoplay, toggleAutoplay: () => setAutoplay((p) => !p), handleVideoEnded,
   }
 }

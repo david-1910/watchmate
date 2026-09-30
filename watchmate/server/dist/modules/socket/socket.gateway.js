@@ -2,50 +2,52 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createSocketGateway = void 0;
 const socket_io_1 = require("socket.io");
-const room_handler_1 = require("./handlers/room.handler");
-const chat_handler_1 = require("./handlers/chat.handler");
-const video_handler_1 = require("./handlers/video.handler");
-const queue_handler_1 = require("./handlers/queue.handler");
-const suggestions_handler_1 = require("./handlers/suggestions.handler");
-const ready_handler_1 = require("./handlers/ready.handler");
-const reactions_handler_1 = require("./handlers/reactions.handler");
-const countdown_handler_1 = require("./handlers/countdown.handler");
+const members_service_1 = require("../members/members.service");
+const socket_broadcaster_1 = require("./socket.broadcaster");
+const presence_handler_1 = require("./handlers/presence.handler");
 const playback_handler_1 = require("./handlers/playback.handler");
+const reactions_handler_1 = require("./handlers/reactions.handler");
 const request_handler_1 = require("./handlers/request.handler");
-const transfer_handler_1 = require("./handlers/transfer.handler");
-// Простой rate limiter для socket событий
-const socketRateLimiter = (socket, limitPerSecond = 10) => {
-    let count = 0;
-    let blocked = false;
-    const reset = setInterval(() => { count = 0; }, 1000);
-    socket.on('disconnect', () => clearInterval(reset));
-    return () => {
-        count++;
-        if (count > limitPerSecond && !blocked) {
-            blocked = true;
-            console.warn(`Socket flood от ${socket.id} — отключаем`);
-            socket.disconnect(true);
-        }
-    };
+const env_1 = require("../../shared/config/env");
+const limits_1 = require("../../shared/constants/limits");
+const validators_1 = require("../../shared/utils/validators");
+const MAX_CONNECTIONS_PER_IP = 10;
+const HANDLERS = [
+    presence_handler_1.registerPresenceHandlers,
+    playback_handler_1.registerPlaybackHandlers,
+    reactions_handler_1.registerReactionsHandlers,
+    request_handler_1.registerRequestHandlers,
+];
+// За прокси (TRUST_PROXY=1) берём последний адрес X-Forwarded-For — его добавил наш прокси
+const getClientIp = (socket) => {
+    const forwarded = socket.handshake.headers['x-forwarded-for'];
+    if (!env_1.env.trustProxy || typeof forwarded !== 'string')
+        return socket.handshake.address;
+    return forwarded.split(',').pop()?.trim() || socket.handshake.address;
 };
-const createSocketGateway = (httpServer) => {
-    const io = new socket_io_1.Server(httpServer, {
-        cors: { origin: true, credentials: true, methods: ['GET', 'POST'] },
-        // Ограничение размера пакета
-        maxHttpBufferSize: 1e5, // 100 KB
-        pingTimeout: 30000,
-        pingInterval: 25000,
-    });
-    // Лимит одновременных подключений с одного IP (защита от DDoS ботов)
+// auth { roomId, memberToken } → socket.data
+const authenticate = (socket, next) => {
+    const auth = socket.handshake.auth;
+    const roomId = (0, validators_1.isObject)(auth) ? auth.roomId : undefined;
+    const memberToken = (0, validators_1.isObject)(auth) ? auth.memberToken : undefined;
+    if (!(0, validators_1.isRoomId)(roomId) || typeof memberToken !== 'string')
+        return next(new Error('UNAUTHORIZED'));
+    const member = members_service_1.membersService.authenticate(roomId, memberToken);
+    if (!member)
+        return next(new Error('UNAUTHORIZED'));
+    socket.data = { roomId, userId: member.userId };
+    next();
+};
+// Лимит одновременных подключений с одного IP. Последний в цепочке io.use:
+// счётчик растёт только у сокетов, которые точно подключатся
+const createIpConnectionLimiter = () => {
     const ipConnections = new Map();
-    const MAX_CONNECTIONS_PER_IP = 10;
-    io.on('connection', (socket) => {
-        const ip = socket.handshake.address;
+    return (socket, next) => {
+        const ip = getClientIp(socket);
         const current = ipConnections.get(ip) ?? 0;
         if (current >= MAX_CONNECTIONS_PER_IP) {
             console.warn(`Лимит подключений превышен для IP ${ip}`);
-            socket.disconnect(true);
-            return;
+            return next(new Error('RATE_LIMIT'));
         }
         ipConnections.set(ip, current + 1);
         socket.on('disconnect', () => {
@@ -55,20 +57,37 @@ const createSocketGateway = (httpServer) => {
             else
                 ipConnections.set(ip, n - 1);
         });
-        const checkRate = socketRateLimiter(socket, 15);
-        socket.onAny(() => checkRate());
-        console.log('Пользователь подключился:', socket.id);
-        (0, room_handler_1.registerRoomHandlers)(io, socket);
-        (0, chat_handler_1.registerChatHandlers)(io, socket);
-        (0, video_handler_1.registerVideoHandlers)(io, socket);
-        (0, queue_handler_1.registerQueueHandlers)(io, socket);
-        (0, suggestions_handler_1.registerSuggestionsHandlers)(io, socket);
-        (0, ready_handler_1.registerReadyHandlers)(io, socket);
-        (0, reactions_handler_1.registerReactionsHandlers)(io, socket);
-        (0, countdown_handler_1.registerCountdownHandlers)(io, socket);
-        (0, playback_handler_1.registerPlaybackHandlers)(io, socket);
-        (0, request_handler_1.registerRequestHandlers)(io, socket);
-        (0, transfer_handler_1.registerTransferHandlers)(io, socket);
+        next();
+    };
+};
+// Больше SOCKET_EVENTS_PER_SECOND событий в секунду — лишние отбрасываются, сокет не отключается
+const dropFloodEvents = (socket) => {
+    let windowStart = Date.now();
+    let count = 0;
+    socket.use((_packet, next) => {
+        const now = Date.now();
+        if (now - windowStart >= 1000) {
+            windowStart = now;
+            count = 0;
+        }
+        count += 1;
+        if (count <= limits_1.SOCKET_EVENTS_PER_SECOND)
+            next();
+    });
+};
+const createSocketGateway = (httpServer) => {
+    const io = new socket_io_1.Server(httpServer, {
+        cors: { origin: true, credentials: true, methods: ['GET', 'POST'] },
+        maxHttpBufferSize: 1e5, // 100 KB
+        pingTimeout: 30000,
+        pingInterval: 25000,
+    });
+    io.use(authenticate);
+    io.use(createIpConnectionLimiter());
+    (0, socket_broadcaster_1.subscribeRoomEvents)(io);
+    io.on('connection', (socket) => {
+        dropFloodEvents(socket);
+        HANDLERS.forEach((register) => register(io, socket));
     });
     return io;
 };

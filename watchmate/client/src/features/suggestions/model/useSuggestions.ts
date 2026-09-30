@@ -1,35 +1,38 @@
-import { useState, useCallback } from 'react'
-import { connectSocket } from '../../../shared/api'
-import { useSocketEvent } from '../../../shared/lib'
-import { SOCKET_EVENTS } from '../../../shared/config'
-import type { Suggestion } from '../../../shared/types'
+import { useState, useCallback, useEffect } from 'react'
+import { useSocketEvent } from '@/shared/lib'
+import { SOCKET_EVENTS } from '@/shared/config'
+import {
+  suggestVideo as suggestVideoRequest,
+  acceptSuggestion as acceptSuggestionRequest,
+  rejectSuggestion as rejectSuggestionRequest,
+  type Suggestion,
+  type RoomSnapshot,
+} from '@/entities/room'
 
-export const useSuggestions = (roomId: string | undefined) => {
+// Ошибки команд игнорируем: актуальный список приходит через suggestions-update
+const ignore = () => {}
+
+export const useSuggestions = (roomId: string, snapshot: RoomSnapshot | null) => {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
-  const [suggestInput, setSuggestInput] = useState('')
+
+  useEffect(() => {
+    if (snapshot) setSuggestions(snapshot.suggestions)
+  }, [snapshot])
 
   const onSuggestions = useCallback((s: Suggestion[]) => setSuggestions(s), [])
-  useSocketEvent<Suggestion[]>(SOCKET_EVENTS.SUGGESTIONS_UPDATE, onSuggestions, !!roomId)
+  useSocketEvent(SOCKET_EVENTS.SUGGESTIONS_UPDATE, onSuggestions)
 
-  const suggestVideo = () => {
-    if (!suggestInput.trim() || !roomId) return
-    connectSocket().emit(SOCKET_EVENTS.SUGGEST_VIDEO, {
-      roomId,
-      url: suggestInput.trim(),
-      title: suggestInput.trim(),
-    })
-    setSuggestInput('')
+  const suggestVideo = (url: string) => {
+    suggestVideoRequest(roomId, url, url).catch(ignore)
   }
 
   const acceptSuggestion = (suggestionId: string) => {
-    if (!roomId) return
-    connectSocket().emit(SOCKET_EVENTS.ACCEPT_SUGGESTION, { roomId, suggestionId })
+    acceptSuggestionRequest(roomId, suggestionId).catch(ignore)
   }
 
   const rejectSuggestion = (suggestionId: string) => {
-    if (!roomId) return
-    connectSocket().emit(SOCKET_EVENTS.REJECT_SUGGESTION, { roomId, suggestionId })
+    rejectSuggestionRequest(roomId, suggestionId).catch(ignore)
   }
 
-  return { suggestions, suggestInput, setSuggestInput, suggestVideo, acceptSuggestion, rejectSuggestion }
+  return { suggestions, suggestVideo, acceptSuggestion, rejectSuggestion }
 }

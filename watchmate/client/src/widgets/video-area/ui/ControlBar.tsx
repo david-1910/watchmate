@@ -10,9 +10,6 @@ export type ControlBarProps = {
   isPlaying: boolean
   // Зритель: звук и запросы к хосту
   volume: number
-  muted: boolean
-  soundBlocked: boolean
-  onToggleMute: () => void
   onVolumeChange: (value: number) => void
   onRequestPlayback: (type: RequestType) => void
   // Хост: очередь и видео
@@ -54,8 +51,7 @@ const HostControls = ({ nextTitle, autoplay, onToggleAutoplay, onNext, onCloseVi
 
 const ViewerControls = (p: ControlBarProps) => (
   <>
-    <VolumeControl volume={p.volume} muted={p.muted} soundBlocked={p.soundBlocked}
-      onToggleMute={p.onToggleMute} onVolumeChange={p.onVolumeChange} />
+    <VolumeControl volume={p.volume} onVolumeChange={p.onVolumeChange} />
     {p.videoStarted && <RequestPlaybackButton isPlaying={p.isPlaying} onRequest={p.onRequestPlayback} />}
   </>
 )
@@ -73,13 +69,19 @@ const FullscreenButton = ({ active, onToggle, className = '' }: FullscreenButton
   )
 }
 
-// Панель под видео: ничего не перекрывает в плеере
+// Панель под видео: в полноэкранном режиме — оверлей с полупрозрачным фоном
 export const ControlBar = (props: ControlBarProps) => {
   const { isHost, hasVideo, fullscreenSupported, fullscreenActive, onToggleFullscreen, onSendReaction } = props
   const showFullscreen = hasVideo && fullscreenSupported
 
   return (
-    <div className="glass rounded-2xl px-2 py-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 shrink-0">
+    <div
+      className={`w-full rounded-2xl px-2.5 py-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 shrink-0 transition-all ${
+        fullscreenActive
+          ? 'bg-black/75 backdrop-blur-md border border-white/15 shadow-2xl'
+          : 'glass'
+      }`}
+    >
       {hasVideo && (
         <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-none">
           {isHost ? <HostControls {...props} /> : <ViewerControls {...props} />}
@@ -97,4 +99,3 @@ export const ControlBar = (props: ControlBarProps) => {
     </div>
   )
 }
-

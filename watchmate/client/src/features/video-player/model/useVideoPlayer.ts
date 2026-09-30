@@ -27,10 +27,7 @@ export const useVideoPlayer = (
   const [isPlaying, setIsPlaying] = useState(false)
   const [videoStarted, setVideoStarted] = useState(false)
   const [countdown, setCountdown] = useState<number | null>(null)
-  // Браузер не дал играть со звуком — играем без звука, пока пользователь не нажмёт «Включить звук»
-  const [soundBlocked, setSoundBlocked] = useState(false)
   const [volume, setVolumeState] = useState(100)
-  const [muted, setMuted] = useState(false)
 
   const mountedRef = useRef(true)
   const isHostRef = useRef(isHost)
@@ -57,8 +54,7 @@ export const useVideoPlayer = (
     onEndedRef.current = onEnded
   }, [isHost, onEnded])
 
-  // Автовоспроизведение со звуком браузер разрешает только после клика на странице.
-  // Если плеер так и не заиграл — запускаем без звука (это разрешено всегда) с ожидаемой позиции
+  // Автовоспроизведение всегда с включённым звуком
   const ensurePlaying = useCallback(() => {
     if (autoplayTimerRef.current) clearTimeout(autoplayTimerRef.current)
     autoplayTimerRef.current = setTimeout(() => {
@@ -67,13 +63,12 @@ export const useVideoPlayer = (
       if (!mountedRef.current || !yt || !expected.playing) return
       const state = yt.getPlayerState()
       if (state === YT_STATE.PLAYING || state === YT_STATE.BUFFERING) return
-      yt.mute()
+      yt.unMute()
+      yt.setVolume(volume)
       yt.seekTo(expected.time + (Date.now() - expected.at) / 1000, true)
       yt.playVideo()
-      setMuted(true)
-      setSoundBlocked(true)
     }, AUTOPLAY_CHECK_MS)
-  }, [])
+  }, [volume])
 
   const applyPlayback = useCallback(({ isPlaying: playing, currentTime }: PlaybackState) => {
     expectedRef.current = { playing, time: currentTime, at: Date.now() }
@@ -86,37 +81,21 @@ export const useVideoPlayer = (
       yt.seekTo(currentTime, true)
     }
     if (playing) {
+      yt.unMute()
+      yt.setVolume(volume)
       yt.playVideo()
       ensurePlaying()
     } else yt.pauseVideo()
-  }, [ensurePlaying])
+  }, [ensurePlaying, volume])
 
-  // Клик пользователя — после него браузер разрешает звук
-  const enableSound = useCallback(() => {
-    ytPlayerRef.current?.unMute()
-    setMuted(false)
-    setSoundBlocked(false)
-  }, [])
-
-  const toggleMute = useCallback(() => {
-    const yt = ytPlayerRef.current
-    if (!yt) return
-    if (yt.isMuted()) {
-      enableSound()
-    } else {
-      yt.mute()
-      setMuted(true)
-    }
-  }, [enableSound])
-
-  // Громкость 0–100; ненулевая громкость снимает «без звука»
+  // Регулировка громкости (0–100)
   const setVolume = useCallback((value: number) => {
     const yt = ytPlayerRef.current
     setVolumeState(value)
     if (!yt) return
+    yt.unMute()
     yt.setVolume(value)
-    if (value > 0 && yt.isMuted()) enableSound()
-  }, [enableSound])
+  }, [])
 
   const onVideoUpdate = useCallback((url: string) => {
     videoUrlRef.current = url
@@ -127,7 +106,6 @@ export const useVideoPlayer = (
     if (countdownTimerRef.current) clearTimeout(countdownTimerRef.current)
     setCountdown(null)
     if (!url) ytPlayerRef.current = null
-    setSoundBlocked(false)
     pendingPlaybackRef.current = null
   }, [])
 
@@ -155,10 +133,12 @@ export const useVideoPlayer = (
       setIsPlaying(true)
       setVideoStarted(true)
       expectedRef.current = { playing: true, time: ytPlayerRef.current?.getCurrentTime() ?? 0, at: Date.now() }
+      ytPlayerRef.current?.unMute()
+      ytPlayerRef.current?.setVolume(volume)
       ytPlayerRef.current?.playVideo()
       ensurePlaying()
     }, PLAYING_DELAY_MS)
-  }, [ensurePlaying])
+  }, [ensurePlaying, volume])
 
   useSocketEvent(SOCKET_EVENTS.VIDEO_UPDATE, onVideoUpdate)
   useSocketEvent(SOCKET_EVENTS.COUNTDOWN, onCountdown)
@@ -177,13 +157,13 @@ export const useVideoPlayer = (
 
   const onYTReady = useCallback((player: YTPlayer) => {
     ytPlayerRef.current = player
-    setVolumeState(player.getVolume())
-    setMuted(player.isMuted())
+    player.unMute()
+    player.setVolume(volume)
     if (pendingPlaybackRef.current) {
       applyPlayback(pendingPlaybackRef.current)
       pendingPlaybackRef.current = null
     }
-  }, [applyPlayback])
+  }, [applyPlayback, volume])
 
   const onYTDestroy = useCallback(() => {
     ytPlayerRef.current = null
@@ -219,8 +199,8 @@ export const useVideoPlayer = (
   }
 
   return {
-    videoUrl, isPlaying, videoStarted, countdown, soundBlocked, enableSound,
-    volume, muted, setVolume, toggleMute,
+    videoUrl, isPlaying, videoStarted, countdown,
+    volume, setVolume,
     shareVideo, clearVideo, syncPlayback,
     onYTReady, onYTDestroy, onYTStateChange,
   }

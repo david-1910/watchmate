@@ -113,8 +113,7 @@ export const RoomSession = ({ roomId, onSessionEnded }: Props) => {
             countdown={player.countdown} isHost={isHost} reactions={reactions}
             readyUsers={readyUsers} viewersCount={viewersCount} allReady={allReady} myUserId={myUserId}
             onToggleReady={toggleReady} onStartWatching={startWatching}
-            soundBlocked={player.soundBlocked} onEnableSound={player.enableSound}
-            volume={player.volume} muted={player.muted} onToggleMute={player.toggleMute} onVolumeChange={player.setVolume}
+            volume={player.volume} onVolumeChange={player.setVolume}
             onRequestPlayback={sendRequest}
             nextTitle={queue.queue[0]?.title ?? null} autoplay={queue.autoplay}
             onToggleAutoplay={queue.toggleAutoplay} onNext={queue.playNext} onCloseVideo={player.clearVideo}
@@ -158,4 +157,3 @@ export const RoomSession = ({ roomId, onSessionEnded }: Props) => {
     </div>
   )
 }
-

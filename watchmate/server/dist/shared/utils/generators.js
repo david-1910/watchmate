@@ -1,10 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generateId = exports.generateHostToken = exports.generateRoomId = void 0;
-const generateRoomId = () => Math.random().toString(36).substring(2, 8).toUpperCase();
-exports.generateRoomId = generateRoomId;
-const generateHostToken = () => Math.random().toString(36).substring(2, 15) +
-    Math.random().toString(36).substring(2, 15);
-exports.generateHostToken = generateHostToken;
-const generateId = () => Date.now().toString();
+exports.generateJoinCode = exports.generateSecretToken = exports.generateId = void 0;
+const crypto_1 = require("crypto");
+const limits_1 = require("../constants/limits");
+const generateId = () => (0, crypto_1.randomUUID)();
 exports.generateId = generateId;
+// 48 hex-символов: hostToken и memberToken
+const generateSecretToken = () => (0, crypto_1.randomBytes)(24).toString('hex');
+exports.generateSecretToken = generateSecretToken;
+const generateJoinCode = () => Array.from({ length: limits_1.JOIN_CODE_LENGTH }, () => limits_1.JOIN_CODE_ALPHABET[(0, crypto_1.randomInt)(limits_1.JOIN_CODE_ALPHABET.length)]).join('');
+exports.generateJoinCode = generateJoinCode;

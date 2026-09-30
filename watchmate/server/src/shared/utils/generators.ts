@@ -1,8 +1,10 @@
-export const generateRoomId = (): string =>
-  Math.random().toString(36).substring(2, 8).toUpperCase()
+import { randomBytes, randomInt, randomUUID } from 'crypto'
+import { JOIN_CODE_ALPHABET, JOIN_CODE_LENGTH } from '../constants/limits'
 
-export const generateHostToken = (): string =>
-  Math.random().toString(36).substring(2, 15) +
-  Math.random().toString(36).substring(2, 15)
+export const generateId = (): string => randomUUID()
 
-export const generateId = (): string => Date.now().toString()
+// 48 hex-символов: hostToken и memberToken
+export const generateSecretToken = (): string => randomBytes(24).toString('hex')
+
+export const generateJoinCode = (): string =>
+  Array.from({ length: JOIN_CODE_LENGTH }, () => JOIN_CODE_ALPHABET[randomInt(JOIN_CODE_ALPHABET.length)]).join('')

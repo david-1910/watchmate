@@ -1,0 +1,5 @@
+export const REACTION_LIFETIME_MS = 1700
+export const REACTION_LEFT_MIN = 15
+export const REACTION_LEFT_RANGE = 70
+export const REACTION_DURATION_BASE = 1.2
+export const REACTION_DURATION_VARIANCE = 0.2

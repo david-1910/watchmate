@@ -1,35 +1,40 @@
-import type { Server, Socket } from 'socket.io'
-import { state } from '../../state/state'
+import { hostService } from '../../members/host.service'
+import { getSocketMember, isHost, onEvent } from '../socket.guards'
+import { AppServer, AppSocket } from '../socket.types'
 import { SOCKET_EVENTS } from '../../../shared/constants/socketEvents'
+import { generateId } from '../../../shared/utils/generators'
+import { isObject } from '../../../shared/utils/validators'
 
-type RequestType = 'pause' | 'play' | 'change-video'
+const REQUEST_TYPES = ['pause', 'play', 'change-video'] as const
 
 type PlaybackRequestPayload = {
-  roomId: string
-  type: RequestType
+  type: (typeof REQUEST_TYPES)[number]
   videoUrl?: string
 }
 
-const handlePlaybackRequest = (io: Server, socket: Socket, data: PlaybackRequestPayload): void => {
-  const userRoom = state.userRooms.get(socket.id)
-  if (!userRoom || userRoom !== data.roomId) return
+const isRequestType = (value: unknown): value is PlaybackRequestPayload['type'] =>
+  REQUEST_TYPES.some((type) => type === value)
 
-  const hostSocketId = state.roomHosts.get(data.roomId)
-  if (!hostSocketId || hostSocketId === socket.id) return
+const parsePlaybackRequest = (raw: unknown): PlaybackRequestPayload | null => {
+  if (!isObject(raw) || !isRequestType(raw.type)) return null
+  if (raw.videoUrl === undefined) return { type: raw.type }
+  return typeof raw.videoUrl === 'string' ? { type: raw.type, videoUrl: raw.videoUrl } : null
+}
 
-  const fromUserName = state.userNames.get(socket.id) ?? 'Аноним'
+// Запрос не-хоста уходит только сокетам хоста
+const handlePlaybackRequest = (io: AppServer, socket: AppSocket, request: PlaybackRequestPayload): void => {
+  const member = getSocketMember(socket)
+  const hostId = hostService.getHostId(socket.data.roomId)
+  if (!member || !hostId || isHost(socket)) return
 
-  io.to(hostSocketId).emit(SOCKET_EVENTS.PLAYBACK_REQUEST_NOTIFY, {
-    id: `${socket.id}-${Date.now()}`,
-    fromUserId: socket.id,
-    fromUserName,
-    type: data.type,
-    videoUrl: data.videoUrl,
+  io.to(hostId).emit(SOCKET_EVENTS.PLAYBACK_REQUEST_NOTIFY, {
+    id: generateId(),
+    fromUserId: member.userId,
+    fromUserName: member.userName,
+    ...request,
   })
 }
 
-export const registerRequestHandlers = (io: Server, socket: Socket): void => {
-  socket.on(SOCKET_EVENTS.PLAYBACK_REQUEST, (data: PlaybackRequestPayload) =>
-    handlePlaybackRequest(io, socket, data)
-  )
+export const registerRequestHandlers = (io: AppServer, socket: AppSocket): void => {
+  onEvent(socket, SOCKET_EVENTS.PLAYBACK_REQUEST, parsePlaybackRequest, (data) => handlePlaybackRequest(io, socket, data))
 }

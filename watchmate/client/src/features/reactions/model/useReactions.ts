@@ -1,66 +1,49 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
-import { connectSocket } from '../../../shared/api'
-import { useSocketEvent } from '../../../shared/lib'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { connectSocket } from '@/shared/api'
+import { useSocketEvent, throttle } from '@/shared/lib'
+import { SOCKET_EVENTS } from '@/shared/config'
 import {
-  SOCKET_EVENTS,
+  buildReaction,
   REACTION_LIFETIME_MS,
-  REACTION_LEFT_MIN,
-  REACTION_LEFT_RANGE,
-  REACTION_DURATION_BASE,
-  REACTION_DURATION_VARIANCE,
-} from '../../../shared/config'
-import type { Reaction } from '../../../shared/types'
+  type Reaction,
+} from '@/entities/reaction'
+import { REACTION_INTERVAL_MS } from '../config/throttle'
 
-const buildReaction = (emoji: string, userName: string): Reaction => ({
-  id: performance.now() + Math.random() * 10000,
-  userName,
-  emoji,
-  left: Math.random() * REACTION_LEFT_RANGE + REACTION_LEFT_MIN,
-  direction: Math.random() > 0.5 ? 'left' : 'right',
-  duration: REACTION_DURATION_BASE + Math.random() * REACTION_DURATION_VARIANCE,
-  zIndex: Math.floor(Math.random() * 100),
-})
+type ReactionEvent = { userId: string; userName: string; emoji: string }
 
-export const useReactions = (roomId: string | undefined) => {
+export const useReactions = () => {
   const [reactions, setReactions] = useState<Reaction[]>([])
-  const mountedRef = useRef(true)
+  const timersRef = useRef(new Set<ReturnType<typeof setTimeout>>())
 
   useEffect(() => {
-    mountedRef.current = true
-    return () => { mountedRef.current = false }
+    const timers = timersRef.current
+    return () => {
+      timers.forEach(clearTimeout)
+      timers.clear()
+    }
   }, [])
 
-  const onReaction = useCallback(
-    (data: { userId: string; userName: string; emoji: string }) => {
-      const reaction = buildReaction(data.emoji, data.userName)
+  const onReaction = useCallback((data: ReactionEvent) => {
+    const reaction = buildReaction(data.emoji, data.userName)
+    requestAnimationFrame(() => setReactions((prev) => [...prev, reaction]))
 
-      requestAnimationFrame(() => {
-        if (mountedRef.current) {
-          setReactions((prev) => [...prev, reaction])
-        }
-      })
+    const timer = setTimeout(() => {
+      timersRef.current.delete(timer)
+      setReactions((prev) => prev.filter((r) => r.id !== reaction.id))
+    }, REACTION_LIFETIME_MS)
+    timersRef.current.add(timer)
+  }, [])
 
-      const timer = setTimeout(() => {
-        if (mountedRef.current) {
-          setReactions((prev) => prev.filter((r) => r.id !== reaction.id))
-        }
-      }, REACTION_LIFETIME_MS)
+  useSocketEvent(SOCKET_EVENTS.REACTION, onReaction)
 
-      return () => clearTimeout(timer)
-    },
+  const sendReaction = useMemo(
+    () =>
+      throttle((emoji: string) => {
+        connectSocket().emit(SOCKET_EVENTS.REACTION, { emoji })
+      }, REACTION_INTERVAL_MS),
     []
   )
-
-  useSocketEvent<{ userId: string; userName: string; emoji: string }>(
-    SOCKET_EVENTS.REACTION,
-    onReaction,
-    !!roomId
-  )
-
-  const sendReaction = (emoji: string) => {
-    if (!roomId) return
-    connectSocket().emit(SOCKET_EVENTS.REACTION, { roomId, emoji })
-  }
+  useEffect(() => () => sendReaction.cancel(), [sendReaction])
 
   return { reactions, sendReaction }
 }

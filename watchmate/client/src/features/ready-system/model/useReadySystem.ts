@@ -1,19 +1,34 @@
-import { useState, useCallback } from 'react'
-import { connectSocket } from '../../../shared/api'
-import { useSocketEvent } from '../../../shared/lib'
-import { SOCKET_EVENTS } from '../../../shared/config'
-import type { ReadyUpdate } from '../../../shared/types'
+import { useState, useCallback, useEffect } from 'react'
+import { useSocketEvent } from '@/shared/lib'
+import { SOCKET_EVENTS } from '@/shared/config'
+import {
+  toggleReady as toggleReadyRequest,
+  startWatching as startWatchingRequest,
+  type ReadyState,
+  type RoomSnapshot,
+} from '@/entities/room'
 
-export const useReadySystem = (roomId: string | undefined) => {
-  const [readyUsers, setReadyUsers] = useState<string[]>([])
+const EMPTY_READY: ReadyState = { readyUsers: [], allReady: false }
 
-  const onReadyUpdate = useCallback((data: ReadyUpdate) => setReadyUsers(data.readyUsers), [])
-  useSocketEvent<ReadyUpdate>(SOCKET_EVENTS.READY_UPDATE, onReadyUpdate, !!roomId)
+// Зрители отмечают готовность, хост готов по умолчанию и запускает отсчёт (CONTRACT.md, Ready)
+export const useReadySystem = (roomId: string, snapshot: RoomSnapshot | null) => {
+  const [ready, setReady] = useState<ReadyState>(EMPTY_READY)
+
+  useEffect(() => {
+    if (snapshot) setReady(snapshot.ready)
+  }, [snapshot])
+
+  const onReadyUpdate = useCallback((data: ReadyState) => setReady(data), [])
+  useSocketEvent(SOCKET_EVENTS.READY_UPDATE, onReadyUpdate)
 
   const toggleReady = () => {
-    if (!roomId) return
-    connectSocket().emit(SOCKET_EVENTS.TOGGLE_READY, roomId)
+    toggleReadyRequest(roomId).then(setReady).catch(() => {})
   }
 
-  return { readyUsers, toggleReady }
+  // Результат придёт событиями countdown и ready-update
+  const startWatching = () => {
+    startWatchingRequest(roomId).catch(() => {})
+  }
+
+  return { readyUsers: ready.readyUsers, allReady: ready.allReady, toggleReady, startWatching }
 }

@@ -1,27 +1,23 @@
-import type { Server, Socket } from 'socket.io'
-import { state } from '../../state/state'
+import { playbackService } from '../../playback/playback.service'
+import { isHost, onEvent } from '../socket.guards'
+import { AppServer, AppSocket } from '../socket.types'
 import { SOCKET_EVENTS } from '../../../shared/constants/socketEvents'
+import { isObject } from '../../../shared/utils/validators'
+import { PlaybackState } from '../../../shared/types'
 
-type PlaybackSyncPayload = { roomId: string; isPlaying: boolean; currentTime: number }
-
-const handlePlaybackSync = (io: Server, socket: Socket, data: PlaybackSyncPayload): void => {
-  const userRoom = state.userRooms.get(socket.id)
-  if (!userRoom || userRoom !== data.roomId) return
-
-  state.roomPlayback.set(data.roomId, {
-    isPlaying: data.isPlaying,
-    currentTime: data.currentTime,
-    updatedAt: Date.now(),
-  })
-
-  socket.to(data.roomId).emit(SOCKET_EVENTS.PLAYBACK_UPDATE, {
-    isPlaying: data.isPlaying,
-    currentTime: data.currentTime,
-  })
+const parsePlaybackSync = (raw: unknown): PlaybackState | null => {
+  if (!isObject(raw) || typeof raw.isPlaying !== 'boolean') return null
+  const { currentTime } = raw
+  if (typeof currentTime !== 'number' || !Number.isFinite(currentTime) || currentTime < 0) return null
+  return { isPlaying: raw.isPlaying, currentTime }
 }
 
-export const registerPlaybackHandlers = (io: Server, socket: Socket): void => {
-  socket.on(SOCKET_EVENTS.PLAYBACK_SYNC, (data: PlaybackSyncPayload) =>
-    handlePlaybackSync(io, socket, data)
-  )
+const handlePlaybackSync = (socket: AppSocket, playback: PlaybackState): void => {
+  if (!isHost(socket)) return
+  playbackService.savePosition(socket.data.roomId, playback)
+  socket.to(socket.data.roomId).emit(SOCKET_EVENTS.PLAYBACK_UPDATE, playback)
+}
+
+export const registerPlaybackHandlers = (_io: AppServer, socket: AppSocket): void => {
+  onEvent(socket, SOCKET_EVENTS.PLAYBACK_SYNC, parsePlaybackSync, (data) => handlePlaybackSync(socket, data))
 }

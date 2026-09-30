@@ -1,105 +1,184 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
-import { connectSocket } from '../../../shared/api'
-import { useSocketEvent } from '../../../shared/lib'
-import { SOCKET_EVENTS, COUNTDOWN_INTERVAL_MS } from '../../../shared/config'
-import { YT_STATE, type YTPlayer } from './ytPlayer'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { connectSocket } from '@/shared/api'
+import { useSocketEvent, throttle, YT_STATE, type YTPlayer } from '@/shared/lib'
+import { SOCKET_EVENTS, COUNTDOWN_INTERVAL_MS } from '@/shared/config'
+import {
+  setVideo,
+  clearVideo as clearRoomVideo,
+  type PlaybackState,
+  type RoomSnapshot,
+} from '@/entities/room'
+import { PLAYBACK_SYNC_INTERVAL_MS, SEEK_TOLERANCE_SEC, AUTOPLAY_CHECK_MS } from '../config/sync'
 
 const PLAYING_DELAY_MS = COUNTDOWN_INTERVAL_MS * 1.5
 
-type PlaybackUpdate = { isPlaying: boolean; currentTime: number }
+type Options = {
+  // Вызывается у хоста, когда YouTube-видео доиграло до конца
+  onEnded?: () => void
+}
 
-export const useVideoPlayer = (roomId: string | undefined, isHost: boolean) => {
+export const useVideoPlayer = (
+  roomId: string,
+  isHost: boolean,
+  snapshot: RoomSnapshot | null,
+  { onEnded }: Options = {}
+) => {
   const [videoUrl, setVideoUrl] = useState('')
-  const [localVideo, setLocalVideo] = useState<string | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [videoStarted, setVideoStarted] = useState(false)
   const [countdown, setCountdown] = useState<number | null>(null)
-  const [inputUrl, setInputUrl] = useState('')
+  // Браузер не дал играть со звуком — играем без звука, пока пользователь не нажмёт «Включить звук»
+  const [soundBlocked, setSoundBlocked] = useState(false)
+  const [volume, setVolumeState] = useState(100)
+  const [muted, setMuted] = useState(false)
 
   const mountedRef = useRef(true)
   const isHostRef = useRef(isHost)
+  const onEndedRef = useRef(onEnded)
+  const videoUrlRef = useRef('')
   const ytPlayerRef = useRef<YTPlayer | null>(null)
-  const videoRef = useRef<HTMLVideoElement | null>(null)
-  const pendingPlaybackRef = useRef<PlaybackUpdate | null>(null)
+  const pendingPlaybackRef = useRef<PlaybackState | null>(null)
+  const countdownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const autoplayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Ожидаемое состояние по последней команде — чтобы после проверки автовоспроизведения встать на нужную позицию
+  const expectedRef = useRef({ playing: false, time: 0, at: 0 })
 
   useEffect(() => {
     mountedRef.current = true
-    return () => { mountedRef.current = false }
+    return () => {
+      mountedRef.current = false
+      if (countdownTimerRef.current) clearTimeout(countdownTimerRef.current)
+      if (autoplayTimerRef.current) clearTimeout(autoplayTimerRef.current)
+    }
   }, [])
 
   useEffect(() => {
     isHostRef.current = isHost
-  }, [isHost])
+    onEndedRef.current = onEnded
+  }, [isHost, onEnded])
 
-  const applyPlayback = useCallback(({ isPlaying: playing, currentTime }: PlaybackUpdate) => {
-    if (ytPlayerRef.current) {
+  // Автовоспроизведение со звуком браузер разрешает только после клика на странице.
+  // Если плеер так и не заиграл — запускаем без звука (это разрешено всегда) с ожидаемой позиции
+  const ensurePlaying = useCallback(() => {
+    if (autoplayTimerRef.current) clearTimeout(autoplayTimerRef.current)
+    autoplayTimerRef.current = setTimeout(() => {
       const yt = ytPlayerRef.current
-      if (Math.abs((yt.getCurrentTime?.() ?? 0) - currentTime) > 1.5) {
-        yt.seekTo(currentTime, true)
-      }
-      playing ? yt.playVideo() : yt.pauseVideo()
-    } else if (videoRef.current) {
-      const v = videoRef.current
-      if (Math.abs(v.currentTime - currentTime) > 1.5) {
-        v.currentTime = currentTime
-      }
-      playing ? void v.play() : v.pause()
-    } else {
-      pendingPlaybackRef.current = { isPlaying: playing, currentTime }
-    }
+      const expected = expectedRef.current
+      if (!mountedRef.current || !yt || !expected.playing) return
+      const state = yt.getPlayerState()
+      if (state === YT_STATE.PLAYING || state === YT_STATE.BUFFERING) return
+      yt.mute()
+      yt.seekTo(expected.time + (Date.now() - expected.at) / 1000, true)
+      yt.playVideo()
+      setMuted(true)
+      setSoundBlocked(true)
+    }, AUTOPLAY_CHECK_MS)
   }, [])
+
+  const applyPlayback = useCallback(({ isPlaying: playing, currentTime }: PlaybackState) => {
+    expectedRef.current = { playing, time: currentTime, at: Date.now() }
+    const yt = ytPlayerRef.current
+    if (!yt) {
+      pendingPlaybackRef.current = { isPlaying: playing, currentTime }
+      return
+    }
+    if (Math.abs((yt.getCurrentTime?.() ?? 0) - currentTime) > SEEK_TOLERANCE_SEC) {
+      yt.seekTo(currentTime, true)
+    }
+    if (playing) {
+      yt.playVideo()
+      ensurePlaying()
+    } else yt.pauseVideo()
+  }, [ensurePlaying])
+
+  // Клик пользователя — после него браузер разрешает звук
+  const enableSound = useCallback(() => {
+    ytPlayerRef.current?.unMute()
+    setMuted(false)
+    setSoundBlocked(false)
+  }, [])
+
+  const toggleMute = useCallback(() => {
+    const yt = ytPlayerRef.current
+    if (!yt) return
+    if (yt.isMuted()) {
+      enableSound()
+    } else {
+      yt.mute()
+      setMuted(true)
+    }
+  }, [enableSound])
+
+  // Громкость 0–100; ненулевая громкость снимает «без звука»
+  const setVolume = useCallback((value: number) => {
+    const yt = ytPlayerRef.current
+    setVolumeState(value)
+    if (!yt) return
+    yt.setVolume(value)
+    if (value > 0 && yt.isMuted()) enableSound()
+  }, [enableSound])
 
   const onVideoUpdate = useCallback((url: string) => {
+    videoUrlRef.current = url
     setVideoUrl(url)
-    setLocalVideo(null)
     setIsPlaying(false)
     setVideoStarted(false)
+    // Видео сменили во время отсчёта — сервер отменил его, убираем цифры
+    if (countdownTimerRef.current) clearTimeout(countdownTimerRef.current)
+    setCountdown(null)
+    if (!url) ytPlayerRef.current = null
+    setSoundBlocked(false)
     pendingPlaybackRef.current = null
   }, [])
 
-  const onLocalFile = useCallback((fileName: string | null) => {
-    if (fileName) setVideoUrl('')
-    setLocalVideo(null)
-    setIsPlaying(false)
-    setVideoStarted(false)
-    pendingPlaybackRef.current = null
-  }, [])
-
-  const onCountdown = useCallback((count: number) => {
-    setCountdown(count)
-    if (count === 0) {
-      const timer = setTimeout(() => {
-        if (mountedRef.current) {
-          setCountdown(null)
-          setIsPlaying(true)
-          setVideoStarted(true)
-          ytPlayerRef.current?.playVideo()
-          if (videoRef.current) void videoRef.current.play()
-        }
-      }, PLAYING_DELAY_MS)
-      return () => clearTimeout(timer)
-    }
-  }, [])
-
-  const onPlaybackUpdate = useCallback((update: PlaybackUpdate) => {
+  const onPlaybackUpdate = useCallback((update: PlaybackState) => {
     setIsPlaying(update.isPlaying)
     // currentTime > 0 — видео уже шло (пауза на середине), оверлей не нужен
     if (update.isPlaying || update.currentTime > 0) setVideoStarted(true)
     applyPlayback(update)
   }, [applyPlayback])
 
-  useSocketEvent<string>(SOCKET_EVENTS.VIDEO_UPDATE, onVideoUpdate, !!roomId)
-  useSocketEvent<string | null>(SOCKET_EVENTS.LOCAL_FILE_UPDATE, onLocalFile, !!roomId)
-  useSocketEvent<number>(SOCKET_EVENTS.COUNTDOWN, onCountdown, !!roomId)
-  useSocketEvent<PlaybackUpdate>(SOCKET_EVENTS.PLAYBACK_UPDATE, onPlaybackUpdate, !!roomId)
+  // Снапшот приходит на каждый connect: плеер пересоздаём, только если сменилось видео
+  useEffect(() => {
+    if (!snapshot) return
+    if (snapshot.video !== videoUrlRef.current) onVideoUpdate(snapshot.video)
+    if (snapshot.playback) onPlaybackUpdate(snapshot.playback)
+  }, [snapshot, onVideoUpdate, onPlaybackUpdate])
 
-  const emitPlaybackSync = useCallback((playing: boolean, currentTime: number) => {
-    if (!isHostRef.current || !roomId) return
-    connectSocket().emit(SOCKET_EVENTS.PLAYBACK_SYNC, { roomId, isPlaying: playing, currentTime })
-  }, [roomId])
+  const onCountdown = useCallback((count: number) => {
+    setCountdown(count)
+    if (count !== 0) return
+    if (countdownTimerRef.current) clearTimeout(countdownTimerRef.current)
+    countdownTimerRef.current = setTimeout(() => {
+      if (!mountedRef.current) return
+      setCountdown(null)
+      setIsPlaying(true)
+      setVideoStarted(true)
+      expectedRef.current = { playing: true, time: ytPlayerRef.current?.getCurrentTime() ?? 0, at: Date.now() }
+      ytPlayerRef.current?.playVideo()
+      ensurePlaying()
+    }, PLAYING_DELAY_MS)
+  }, [ensurePlaying])
+
+  useSocketEvent(SOCKET_EVENTS.VIDEO_UPDATE, onVideoUpdate)
+  useSocketEvent(SOCKET_EVENTS.COUNTDOWN, onCountdown)
+  useSocketEvent(SOCKET_EVENTS.PLAYBACK_UPDATE, onPlaybackUpdate)
+
+  const emitPlaybackSync = useMemo(
+    () =>
+      throttle((isPlaying: boolean, currentTime: number) => {
+        if (!isHostRef.current) return
+        const payload: PlaybackState = { isPlaying, currentTime }
+        connectSocket().emit(SOCKET_EVENTS.PLAYBACK_SYNC, payload)
+      }, PLAYBACK_SYNC_INTERVAL_MS),
+    []
+  )
+  useEffect(() => () => emitPlaybackSync.cancel(), [emitPlaybackSync])
 
   const onYTReady = useCallback((player: YTPlayer) => {
     ytPlayerRef.current = player
+    setVolumeState(player.getVolume())
+    setMuted(player.isMuted())
     if (pendingPlaybackRef.current) {
       applyPlayback(pendingPlaybackRef.current)
       pendingPlaybackRef.current = null
@@ -111,57 +190,34 @@ export const useVideoPlayer = (roomId: string | undefined, isHost: boolean) => {
   }, [])
 
   const onYTStateChange = useCallback((ytState: number, currentTime: number) => {
-    if (!isHostRef.current || !roomId) return
+    if (!isHostRef.current) return
     if (ytState === YT_STATE.PLAYING || ytState === YT_STATE.PAUSED) {
       emitPlaybackSync(ytState === YT_STATE.PLAYING, currentTime)
+    } else if (ytState === YT_STATE.ENDED) {
+      onEndedRef.current?.()
     }
-  }, [roomId, emitPlaybackSync])
-
-  const onLocalVideoPlay = useCallback(() => {
-    if (!videoRef.current) return
-    emitPlaybackSync(true, videoRef.current.currentTime)
-  }, [emitPlaybackSync])
-
-  const onLocalVideoPause = useCallback(() => {
-    if (!videoRef.current) return
-    emitPlaybackSync(false, videoRef.current.currentTime)
-  }, [emitPlaybackSync])
-
-  const onLocalVideoSeeked = useCallback(() => {
-    if (!videoRef.current) return
-    emitPlaybackSync(!videoRef.current.paused, videoRef.current.currentTime)
   }, [emitPlaybackSync])
 
   const syncPlayback = useCallback((playing: boolean) => {
-    if (!roomId) return
-    const currentTime = ytPlayerRef.current?.getCurrentTime()
-      ?? videoRef.current?.currentTime
-      ?? 0
+    const currentTime = ytPlayerRef.current?.getCurrentTime() ?? 0
     applyPlayback({ isPlaying: playing, currentTime })
     emitPlaybackSync(playing, currentTime)
-  }, [roomId, applyPlayback, emitPlaybackSync])
+  }, [applyPlayback, emitPlaybackSync])
 
+  // Ошибки команд игнорируем: состояние всё равно приходит через video-update
   const shareVideo = (url: string) => {
-    if (!url.trim() || !roomId) return
-    connectSocket().emit(SOCKET_EVENTS.SHARE_VIDEO, { roomId, videoUrl: url.trim() })
-    setInputUrl('')
+    if (!url.trim()) return
+    setVideo(roomId, url.trim()).catch(() => {})
   }
 
   const clearVideo = () => {
-    if (!roomId) return
-    connectSocket().emit(SOCKET_EVENTS.CLEAR_VIDEO, roomId)
-    setLocalVideo(null)
-    setIsPlaying(false)
-    ytPlayerRef.current = null
-    pendingPlaybackRef.current = null
+    clearRoomVideo(roomId).catch(() => {})
   }
 
   return {
-    videoUrl, localVideo, isPlaying, videoStarted, countdown,
-    inputUrl, setInputUrl,
+    videoUrl, isPlaying, videoStarted, countdown, soundBlocked, enableSound,
+    volume, muted, setVolume, toggleMute,
     shareVideo, clearVideo, syncPlayback,
-    videoRef,
     onYTReady, onYTDestroy, onYTStateChange,
-    onLocalVideoPlay, onLocalVideoPause, onLocalVideoSeeked,
   }
 }

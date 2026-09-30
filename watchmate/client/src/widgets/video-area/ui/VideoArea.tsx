@@ -1,171 +1,118 @@
-import type { RefObject } from 'react'
-import type { Reaction, RoomUser } from '../../../shared/types'
-import { Button, Input } from '../../../shared/ui'
-import { getYouTubeVideoId } from '../../../shared/lib'
-import { REACTION_EMOJIS } from '../../../shared/config'
-import { YouTubePlayer } from '../../../features/video-player/ui/YouTubePlayer'
-import type { YTPlayer } from '../../../features/video-player/model/ytPlayer'
+import { ListPlus, Play, Tv } from 'lucide-react'
+import { LinkInput, RutubePlayer, YouTubePlayer } from '@/shared/ui'
+import { parseVideoLink, useFullscreen, validateVideoLink, type YTPlayer } from '@/shared/lib'
+import { FloatingReaction, type Reaction } from '@/entities/reaction'
+import { ReadyOverlay } from '@/features/ready-system'
+import { CountdownOverlay, EnableSoundButton } from '@/features/video-player'
+import { ControlBar, type ControlBarProps } from './ControlBar'
 
-type Props = {
+type Props = Omit<ControlBarProps, 'hasVideo' | 'fullscreenSupported' | 'fullscreenActive' | 'onToggleFullscreen'> & {
   videoUrl: string
-  localVideo: string | null
-  isPlaying: boolean
-  videoStarted: boolean
   countdown: number | null
-  isHost: boolean
-  autoplay: boolean
   reactions: Reaction[]
   readyUsers: string[]
-  users: RoomUser[]
-  currentUserName: string
-  inputUrl: string
-  videoRef: RefObject<HTMLVideoElement | null>
-  onInputUrlChange: (v: string) => void
-  onShareVideo: (url: string) => void
-  onClearVideo: () => void
+  viewersCount: number
+  allReady: boolean
+  myUserId: string | null
+  onEnableSound: () => void
   onToggleReady: () => void
-  onSendReaction: (emoji: string) => void
-  onPlayNextFromQueue: () => void
+  onStartWatching: () => void
+  // Пустое состояние: хост вставляет ссылку, зритель может перейти к предложениям
+  draft: string
+  onDraftChange: (value: string) => void
+  onPlayNow: (url: string) => void
+  onAddToQueue: (url: string) => void
+  onOpenQueue: () => void
   onYTReady: (player: YTPlayer) => void
   onYTDestroy: () => void
   onYTStateChange: (state: number, currentTime: number) => void
-  onLocalVideoPlay: () => void
-  onLocalVideoPause: () => void
-  onLocalVideoSeeked: () => void
-  queueLength: number
 }
 
-const ReadyOverlay = ({ readyUsers, users, currentUserName, onToggle }: {
-  readyUsers: string[]
-  users: RoomUser[]
-  currentUserName: string
-  onToggle: () => void
-}) => {
-  const myUserId = users.find((u) => u.userName === currentUserName)?.userId ?? ''
-  return (
-    <div className="absolute inset-0 glass-dark flex flex-col items-center justify-center gap-4">
-      <p className="text-2xl font-bold text-glow">Все готовы?</p>
-      <p className="text-gray-300">{readyUsers.length}/{users.length} готовы</p>
-      <Button onClick={onToggle}>
-        {readyUsers.includes(myUserId) ? '✓ Я готов!' : 'Готов!'}
-      </Button>
+const HostEmptyState = ({ draft, onDraftChange, onPlayNow, onAddToQueue }: Pick<Props, 'draft' | 'onDraftChange' | 'onPlayNow' | 'onAddToQueue'>) => (
+  <div className="flex flex-col items-center gap-4 p-6 w-full max-w-xl">
+    <div className="w-14 h-14 rounded-2xl glass flex items-center justify-center text-purple-300">
+      <Tv className="w-7 h-7" />
     </div>
-  )
-}
+    <div className="text-center">
+      <p className="text-lg font-semibold">Что будем смотреть?</p>
+      <p className="text-sm text-gray-400">Вставьте ссылку на видео YouTube или Rutube</p>
+    </div>
+    <LinkInput layout="row" value={draft} onChange={onDraftChange} placeholder="Ссылка на YouTube или Rutube"
+      validate={validateVideoLink}
+      actions={[
+        { label: 'Смотреть', icon: <Play className="w-4 h-4" />, onClick: onPlayNow, primary: true },
+        { label: 'В очередь', icon: <ListPlus className="w-4 h-4" />, onClick: onAddToQueue },
+      ]} />
+  </div>
+)
 
-export const VideoArea = ({
-  videoUrl, localVideo, isPlaying, videoStarted, countdown, isHost, autoplay, reactions,
-  readyUsers, users, currentUserName, inputUrl, videoRef,
-  onInputUrlChange, onShareVideo, onClearVideo, onToggleReady, onSendReaction,
-  onPlayNextFromQueue, onYTReady, onYTDestroy, onYTStateChange,
-  onLocalVideoPlay, onLocalVideoPause, onLocalVideoSeeked, queueLength,
-}: Props) => {
-  const youtubeId = videoUrl ? getYouTubeVideoId(videoUrl) : null
+const ViewerEmptyState = ({ onOpenQueue }: { onOpenQueue: () => void }) => (
+  <div className="flex flex-col items-center gap-3 p-6 text-center">
+    <div className="w-14 h-14 rounded-2xl glass flex items-center justify-center text-purple-300">
+      <Tv className="w-7 h-7" />
+    </div>
+    <p className="text-lg font-semibold">Хост скоро включит видео</p>
+    <button onClick={onOpenQueue} className="text-sm text-purple-300 hover:text-purple-200 underline underline-offset-4">
+      Предложить своё видео
+    </button>
+  </div>
+)
+
+export const VideoArea = (props: Props) => {
+  const {
+    videoUrl, isPlaying, videoStarted, countdown, soundBlocked, onEnableSound, isHost, reactions,
+    readyUsers, viewersCount, allReady, myUserId, onToggleReady, onStartWatching,
+    draft, onDraftChange, onPlayNow, onAddToQueue, onOpenQueue,
+    onYTReady, onYTDestroy, onYTStateChange,
+  } = props
+  const source = videoUrl ? parseVideoLink(videoUrl) : null
+  const fullscreen = useFullscreen<HTMLDivElement>()
 
   return (
-    <div className="h-full flex flex-col min-h-0">
-      <div className="glass-card rounded-2xl flex-1 flex flex-col items-center justify-center relative overflow-hidden group">
-        {reactions.map((r) => (
-          <div key={r.id} className="absolute text-3xl pointer-events-none"
-            style={{ left: `${r.left}%`, bottom: '10px', zIndex: r.zIndex, willChange: 'transform, opacity',
-              animation: `float-up-${r.direction} ${r.duration}s ease-out forwards` }}>
-            {r.emoji}
-          </div>
-        ))}
-
-        {localVideo ? (
+    <div className="h-full flex flex-col min-h-0 gap-2">
+      <div ref={fullscreen.ref}
+        className="glass-card rounded-2xl flex-1 min-h-0 flex flex-col items-center justify-center relative isolate overflow-hidden">
+        {/* Слои карточки идут по порядку в DOM (без z-index): плеер → щит → реакции → звук → готовность → отсчёт */}
+        {source ? (
           <>
-            <video
-              ref={videoRef}
-              src={localVideo}
-              width="100%"
-              height="100%"
-              controls={isHost}
-              className="rounded-lg"
-              onPlay={isHost ? onLocalVideoPlay : undefined}
-              onPause={isHost ? onLocalVideoPause : undefined}
-              onSeeked={isHost ? onLocalVideoSeeked : undefined}
-              onEnded={() => { if (autoplay && isHost && queueLength > 0) onPlayNextFromQueue() }}
-            />
-            {/* Блокируем управление для зрителей только во время воспроизведения */}
-            {!isHost && isPlaying && <div className="absolute inset-0 z-10" />}
-            {isHost && (
-              <button onClick={onClearVideo} className="absolute top-3 right-3 glass-button-secondary px-3 py-2 md:py-1 rounded-lg text-sm z-30 hover:bg-red-500/50 min-w-[44px] min-h-[44px] md:min-h-0 flex items-center justify-center">
-                ✕ Закрыть
-              </button>
+            {/* Оба плеера отдают одинаковый интерфейс — синхронизация не зависит от источника */}
+            {source.provider === 'youtube' ? (
+              <YouTubePlayer key={source.id} videoId={source.id}
+                onReady={onYTReady} onDestroy={onYTDestroy} onStateChange={onYTStateChange} />
+            ) : (
+              <RutubePlayer key={source.id} videoId={source.id} privateKey={source.privateKey}
+                onReady={onYTReady} onDestroy={onYTDestroy} onStateChange={onYTStateChange} />
             )}
-            {!videoStarted && (
-              <ReadyOverlay readyUsers={readyUsers} users={users} currentUserName={currentUserName} onToggle={onToggleReady} />
-            )}
-          </>
-        ) : youtubeId ? (
-          <>
-            <YouTubePlayer
-              key={youtubeId}
-              videoId={youtubeId}
-              onReady={onYTReady}
-              onDestroy={onYTDestroy}
-              onStateChange={onYTStateChange}
-            />
-            {/* Блокируем управление для зрителей только во время воспроизведения */}
-            {!isHost && isPlaying && <div className="absolute inset-0 z-10" />}
-            {isHost && (
-              <button onClick={onClearVideo} className="absolute top-3 right-3 glass-button-secondary px-3 py-2 md:py-1 rounded-lg text-sm z-30 hover:bg-red-500/50 min-w-[44px] min-h-[44px] md:min-h-0 flex items-center justify-center">
-                ✕ Закрыть
-              </button>
-            )}
-            {!videoStarted && (
-              <ReadyOverlay readyUsers={readyUsers} users={users} currentUserName={currentUserName} onToggle={onToggleReady} />
-            )}
-          </>
-        ) : videoUrl ? (
-          <>
-            <iframe src={videoUrl} width="100%" height="100%" style={{ border: 'none' }}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
-            {isHost && (
-              <button onClick={onClearVideo} className="absolute top-3 right-3 glass-button-secondary px-3 py-2 md:py-1 rounded-lg text-sm z-30 hover:bg-red-500/50 min-w-[44px] min-h-[44px] md:min-h-0 flex items-center justify-center">
-                ✕ Закрыть
-              </button>
+            {/* Зритель не управляет плеером — звук, полный экран и запросы вынесены в панель под видео */}
+            {!isHost && isPlaying && <div className="absolute inset-0" />}
+            {reactions.map((r) => <FloatingReaction key={r.id} reaction={r} />)}
+            {soundBlocked && <EnableSoundButton onClick={onEnableSound} />}
+            {/* На время отсчёта оверлей готовности скрыт — иначе «Начать» висит поверх цифр */}
+            {!videoStarted && countdown === null && (
+              <ReadyOverlay isHost={isHost} readyUsers={readyUsers} viewersCount={viewersCount} allReady={allReady}
+                myUserId={myUserId} onToggle={onToggleReady} onStart={onStartWatching} />
             )}
           </>
         ) : (
-          <div className="flex flex-col items-center gap-1 p-8">
-            {isHost ? (
-              <>
-                <p className="text-gray-300 mb-2">Вставьте ссылку на видео</p>
-                <div className="flex gap-3 w-full max-w-lg">
-                  <div className="flex-1">
-                    <Input placeholder="YouTube, Vimeo и др..." value={inputUrl} onChange={onInputUrlChange}
-                      onKeyDown={(e) => e.key === 'Enter' && onShareVideo(inputUrl)} />
-                  </div>
-                  <Button onClick={() => onShareVideo(inputUrl)}>Открыть</Button>
-                </div>
-              </>
+          <>
+            {videoUrl ? (
+              <iframe src={videoUrl} width="100%" height="100%" style={{ border: 'none' }}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
+            ) : isHost ? (
+              <HostEmptyState draft={draft} onDraftChange={onDraftChange} onPlayNow={onPlayNow} onAddToQueue={onAddToQueue} />
             ) : (
-              <p className="text-gray-400">Ожидание видео от хоста...</p>
+              <ViewerEmptyState onOpenQueue={onOpenQueue} />
             )}
-          </div>
+            {reactions.map((r) => <FloatingReaction key={r.id} reaction={r} />)}
+          </>
         )}
 
-        {countdown !== null && (
-          <div className="absolute inset-0 glass-dark flex items-center justify-center">
-            <span className="text-9xl font-bold text-glow">{countdown === 0 ? '▶️' : countdown}</span>
-          </div>
-        )}
-
-        {/* Панель реакций — на мобиле всегда, на десктопе при наведении */}
-        <div className="absolute bottom-0 left-0 right-0 z-20 flex justify-center gap-2 md:gap-4 py-3 px-4
-          bg-gradient-to-t from-black/60 to-transparent
-          md:opacity-0 md:group-hover:opacity-100 md:translate-y-2 md:group-hover:translate-y-0
-          transition-all duration-200">
-          {REACTION_EMOJIS.map((emoji) => (
-            <button key={emoji} onClick={() => onSendReaction(emoji)}
-              className="text-2xl md:text-3xl hover:scale-125 transition-transform hover:drop-shadow-lg">
-              {emoji}
-            </button>
-          ))}
-        </div>
+        {countdown !== null && <CountdownOverlay count={countdown} />}
       </div>
+
+      <ControlBar {...props} hasVideo={!!videoUrl}
+        fullscreenSupported={fullscreen.supported} fullscreenActive={fullscreen.active}
+        onToggleFullscreen={fullscreen.toggle} />
     </div>
   )
 }

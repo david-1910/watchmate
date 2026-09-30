@@ -36,7 +36,7 @@ const HostControls = ({ nextTitle, autoplay, onToggleAutoplay, onNext, onCloseVi
       title={nextTitle ? `Следующее: ${nextTitle}` : 'Очередь пуста'}
       className={`${BTN} glass hover:bg-white/10 text-gray-200 disabled:opacity-40 disabled:cursor-not-allowed`}>
       <SkipForward className="w-4 h-4" />
-      Следующее
+      <span className="hidden xs:inline">Следующее</span>
     </button>
     <button onClick={onToggleAutoplay} aria-pressed={autoplay}
       title="Автоматически включать следующее видео из очереди"
@@ -60,22 +60,20 @@ const ViewerControls = (p: ControlBarProps) => (
   </>
 )
 
-<<<<<<< HEAD
 type FullscreenButtonProps = { active: boolean; onToggle: () => void; className?: string }
 
 const FullscreenButton = ({ active, onToggle, className = '' }: FullscreenButtonProps) => {
   const Icon = active ? Minimize : Maximize
   return (
-    <button onClick={onToggle} title={active ? 'Свернуть' : 'На весь экран'}
-      className={`shrink-0 h-9 px-2.5 rounded-xl glass hover:bg-white/10 inline-flex items-center justify-center gap-1.5 text-sm font-semibold text-gray-200 ${className}`}>
+    <button onClick={onToggle} title={active ? 'Выйти из полноэкранного режима' : 'На весь экран'}
+      className={`shrink-0 h-9 px-2.5 rounded-xl glass hover:bg-white/10 inline-flex items-center justify-center gap-1.5 text-sm font-semibold text-gray-200 transition-colors ${className}`}>
       <Icon className="w-4 h-4" />
-      {active && <span>Свернуть</span>}
+      <span className="hidden md:inline">{active ? 'Свернуть' : 'На весь экран'}</span>
     </button>
   )
 }
 
-// Панель под видео: ничего не перекрывает в плеере.
-// На телефоне — две строки (управление и полный экран / реакции), на широком экране — одна
+// Панель под видео: ничего не перекрывает в плеере
 export const ControlBar = (props: ControlBarProps) => {
   const { isHost, hasVideo, fullscreenSupported, fullscreenActive, onToggleFullscreen, onSendReaction } = props
   const showFullscreen = hasVideo && fullscreenSupported
@@ -90,31 +88,10 @@ export const ControlBar = (props: ControlBarProps) => {
           )}
         </div>
       )}
-      <div className="flex items-center gap-1 w-full sm:w-auto sm:ml-auto min-w-0">
+      <div className="flex items-center gap-1 w-full sm:w-auto sm:ml-auto min-w-0 justify-between sm:justify-end">
         <ReactionBar onSend={onSendReaction} />
         {showFullscreen && (
           <FullscreenButton active={fullscreenActive} onToggle={onToggleFullscreen} className="hidden sm:inline-flex" />
-=======
-// Панель под видео: ничего не перекрывает в плеере
-export const ControlBar = (props: ControlBarProps) => {
-  const { isHost, hasVideo, fullscreenSupported, fullscreenActive, onToggleFullscreen, onSendReaction } = props
-  const FullscreenIcon = fullscreenActive ? Minimize : Maximize
-
-  return (
-    <div className="glass rounded-2xl px-2 py-1.5 flex flex-wrap items-center gap-2 shrink-0">
-      {hasVideo && (
-        <div className="flex flex-wrap items-center gap-2">
-          {isHost ? <HostControls {...props} /> : <ViewerControls {...props} />}
-        </div>
-      )}
-      <div className="flex items-center gap-1 ml-auto min-w-0">
-        <ReactionBar onSend={onSendReaction} />
-        {hasVideo && fullscreenSupported && (
-          <button onClick={onToggleFullscreen} title={fullscreenActive ? 'Выйти из полноэкранного режима' : 'На весь экран'}
-            className="shrink-0 w-9 h-9 rounded-xl glass hover:bg-white/10 inline-flex items-center justify-center text-gray-200">
-            <FullscreenIcon className="w-4 h-4" />
-          </button>
->>>>>>> 75d61a1b01b63716100cf7cfc41b468a6aaf49b4
         )}
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { ListPlus, Play, Tv } from 'lucide-react'
+import { ListPlus, Minimize, Play, Tv } from 'lucide-react'
 import { LinkInput, RutubePlayer, YouTubePlayer } from '@/shared/ui'
 import { parseVideoLink, useFullscreen, validateVideoLink, type YTPlayer } from '@/shared/lib'
 import { FloatingReaction, type Reaction } from '@/entities/reaction'
@@ -69,14 +69,16 @@ export const VideoArea = (props: Props) => {
   const fullscreen = useFullscreen<HTMLDivElement>()
 
   return (
-<<<<<<< HEAD
-    // В полный экран уходит видео вместе с панелью — иначе на телефоне нечем выйти (нет Esc)
-    <div ref={fullscreen.ref} className={`h-full flex flex-col min-h-0 gap-2 ${fullscreen.active ? 'bg-black p-2' : ''}`}>
+    // В полноэкранном режиме контейнер занимает весь экран вместе с панелью управления
+    <div
+      ref={fullscreen.ref}
+      className={
+        fullscreen.active
+          ? 'fixed inset-0 z-50 bg-black p-2 md:p-3 flex flex-col min-h-0 gap-2 w-screen h-screen'
+          : 'h-full flex flex-col min-h-0 gap-2'
+      }
+    >
       <div
-=======
-    <div className="h-full flex flex-col min-h-0 gap-2">
-      <div ref={fullscreen.ref}
->>>>>>> 75d61a1b01b63716100cf7cfc41b468a6aaf49b4
         className="glass-card rounded-2xl flex-1 min-h-0 flex flex-col items-center justify-center relative isolate overflow-hidden">
         {/* Слои карточки идут по порядку в DOM (без z-index): плеер → щит → реакции → звук → готовность → отсчёт */}
         {source ? (
@@ -112,6 +114,18 @@ export const VideoArea = (props: Props) => {
             )}
             {reactions.map((r) => <FloatingReaction key={r.id} reaction={r} />)}
           </>
+        )}
+
+        {/* Быстрая кнопка выхода из полноэкранного режима на видео */}
+        {fullscreen.active && (
+          <button
+            onClick={fullscreen.toggle}
+            title="Выйти из полноэкранного режима"
+            className="absolute top-3 right-3 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/75 hover:bg-black/90 active:scale-95 text-white backdrop-blur-md border border-white/20 shadow-lg text-xs md:text-sm font-medium transition-all"
+          >
+            <Minimize className="w-4 h-4" />
+            <span>Выйти</span>
+          </button>
         )}
 
         {countdown !== null && <CountdownOverlay count={countdown} />}

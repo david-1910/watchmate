@@ -21,6 +21,7 @@ import { VideoArea } from '@/widgets/video-area'
 import { QueuePanel } from '@/widgets/queue-panel'
 import { SuggestPanel } from '@/widgets/suggest-panel'
 import { UsersPanel } from '@/widgets/users-panel'
+import { useViewportHeight } from '@/shared/lib'
 import { useHostAlerts } from '../model/useHostAlerts'
 
 type Props = {
@@ -35,6 +36,8 @@ export const RoomSession = ({ roomId, onSessionEnded }: Props) => {
   const [showExitModal, setShowExitModal] = useState(false)
   // Один черновик ссылки: пустой экран хоста и вкладка «Очередь» — одно и то же поле
   const [videoDraft, setVideoDraft] = useState('')
+  // Комната занимает ровно видимую область — клавиатура на телефоне не сдвигает страницу
+  useViewportHeight()
 
   const { snapshot, connected, users, hostId, myUserId } = useRoomConnection(roomId, { onSessionEnded })
   const isHost = !!myUserId && myUserId === hostId
@@ -91,7 +94,7 @@ export const RoomSession = ({ roomId, onSessionEnded }: Props) => {
   )
 
   return (
-    <div className="h-[100dvh] bg-app text-white flex flex-col overflow-hidden p-3 md:p-5 gap-3">
+    <div className="h-[var(--app-height,100dvh)] bg-app text-white flex flex-col overflow-hidden p-3 md:p-5 gap-3">
       {!connected && <ReconnectBanner />}
       {isHost && <PlaybackRequestToasts requests={requests} onApprove={approveRequest} onDismiss={dismissRequest} />}
 

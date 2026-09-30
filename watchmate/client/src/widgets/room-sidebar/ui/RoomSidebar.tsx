@@ -58,7 +58,7 @@ export const RoomSidebar = ({
   return (
     <aside className={[
       // mobile: fixed overlay справа
-      'fixed top-0 bottom-0 right-0 z-drawer w-[85vw] max-w-sm rounded-l-2xl',
+      'fixed top-0 right-0 h-[var(--app-height,100dvh)] z-drawer w-[85vw] max-w-sm rounded-l-2xl',
       // desktop: сбрасываем fixed в inline
       'md:static md:z-auto md:max-w-none md:rounded-2xl',
       'glass-card flex flex-col min-h-0 transition-all duration-300 overflow-hidden',

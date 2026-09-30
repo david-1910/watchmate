@@ -3,6 +3,15 @@
 @tailwind utilities;
 
 @layer base {
+  /* iOS Safari увеличивает страницу при фокусе на поле со шрифтом меньше 16px */
+  @media (max-width: 639px) {
+    input,
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
+  }
+
   /* Приложение тёмное целиком. Базовый цвет нужен и элементам в Portal — они вне корня страницы */
   body {
     @apply bg-[#0f0f23] text-white antialiased;

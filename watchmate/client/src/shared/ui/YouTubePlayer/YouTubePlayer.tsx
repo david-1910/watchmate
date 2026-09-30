@@ -49,5 +49,5 @@ export const YouTubePlayer = ({ videoId, onReady, onDestroy, onStateChange }: Pr
     }
   }, [videoId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return <div ref={containerRef} className="w-full h-full [&>iframe]:w-full [&>iframe]:h-full" style={{ width: '100%', height: '100%' }} />
+  return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 }

@@ -1,4 +1,4 @@
-import { ListPlus, Minimize, Play, Tv } from 'lucide-react'
+import { ListPlus, Play, Tv } from 'lucide-react'
 import { LinkInput, RutubePlayer, YouTubePlayer } from '@/shared/ui'
 import { parseVideoLink, useFullscreen, validateVideoLink, type YTPlayer } from '@/shared/lib'
 import { FloatingReaction, type Reaction } from '@/entities/reaction'
@@ -69,17 +69,22 @@ export const VideoArea = (props: Props) => {
   const fullscreen = useFullscreen<HTMLDivElement>()
 
   return (
-    // В полноэкранном режиме контейнер занимает весь экран вместе с панелью управления
+    // В полноэкранном режиме видео занимает 100% экрана, а панель управления — оверлей поверх видео
     <div
       ref={fullscreen.ref}
       className={
         fullscreen.active
-          ? 'fixed inset-0 z-50 bg-black p-2 md:p-3 flex flex-col min-h-0 gap-2 w-screen h-screen'
-          : 'h-full flex flex-col min-h-0 gap-2'
+          ? 'fixed inset-0 z-50 bg-black w-screen h-screen overflow-hidden relative flex flex-col items-center justify-center'
+          : 'h-full flex flex-col min-h-0 gap-2 relative'
       }
     >
       <div
-        className="glass-card rounded-2xl flex-1 min-h-0 flex flex-col items-center justify-center relative isolate overflow-hidden">
+        className={
+          fullscreen.active
+            ? 'absolute inset-0 w-full h-full flex flex-col items-center justify-center isolate overflow-hidden bg-black'
+            : 'glass-card rounded-2xl flex-1 min-h-0 flex flex-col items-center justify-center relative isolate overflow-hidden'
+        }
+      >
         {/* Слои карточки идут по порядку в DOM (без z-index): плеер → щит → реакции → звук → готовность → отсчёт */}
         {source ? (
           <>
@@ -105,7 +110,7 @@ export const VideoArea = (props: Props) => {
         ) : (
           <>
             {videoUrl ? (
-              <iframe src={videoUrl} width="100%" height="100%" style={{ border: 'none' }}
+              <iframe src={videoUrl} width="100%" height="100%" className="w-full h-full" style={{ border: 'none' }}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
             ) : isHost ? (
               <HostEmptyState draft={draft} onDraftChange={onDraftChange} onPlayNow={onPlayNow} onAddToQueue={onAddToQueue} />
@@ -116,25 +121,25 @@ export const VideoArea = (props: Props) => {
           </>
         )}
 
-        {/* Быстрая кнопка выхода из полноэкранного режима на видео */}
-        {fullscreen.active && (
-          <button
-            onClick={fullscreen.toggle}
-            title="Выйти из полноэкранного режима"
-            className="absolute top-3 right-3 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/75 hover:bg-black/90 active:scale-95 text-white backdrop-blur-md border border-white/20 shadow-lg text-xs md:text-sm font-medium transition-all"
-          >
-            <Minimize className="w-4 h-4" />
-            <span>Выйти</span>
-          </button>
-        )}
-
         {countdown !== null && <CountdownOverlay count={countdown} />}
       </div>
 
-      <ControlBar {...props} hasVideo={!!videoUrl}
-        fullscreenSupported={fullscreen.supported} fullscreenActive={fullscreen.active}
-        onToggleFullscreen={fullscreen.toggle} />
+      {/* Панель управления: в обычном режиме снизу, в полноэкранном — оверлей поверх видео */}
+      <div
+        className={
+          fullscreen.active
+            ? 'absolute bottom-3 inset-x-3 md:bottom-5 md:inset-x-8 z-30 pointer-events-auto max-w-5xl mx-auto flex justify-center w-[calc(100%-1.5rem)] md:w-[calc(100%-3rem)]'
+            : 'shrink-0'
+        }
+      >
+        <ControlBar
+          {...props}
+          hasVideo={!!videoUrl}
+          fullscreenSupported={fullscreen.supported}
+          fullscreenActive={fullscreen.active}
+          onToggleFullscreen={fullscreen.toggle}
+        />
+      </div>
     </div>
   )
 }
-

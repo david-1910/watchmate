@@ -3,6 +3,8 @@ import { ListPlus, Play, Tv } from 'lucide-react'
 import { LinkInput, RutubePlayer, YouTubePlayer } from '@/shared/ui'
 import { parseVideoLink, useFullscreen, useWakeLock, validateVideoLink, type YTPlayer } from '@/shared/lib'
 import { FloatingReaction, type Reaction } from '@/entities/reaction'
+import type { DisplayMessage } from '@/entities/message'
+import { ChatOverlay } from '@/features/chat'
 import { ReadyOverlay } from '@/features/ready-system'
 import { CountdownOverlay } from '@/features/video-player'
 import { ControlBar, type ControlBarProps } from './ControlBar'
@@ -10,6 +12,8 @@ import { ControlBar, type ControlBarProps } from './ControlBar'
 type Props = Omit<ControlBarProps, 'hasVideo' | 'fullscreenSupported' | 'fullscreenActive' | 'onToggleFullscreen'> & {
   videoUrl: string
   countdown: number | null
+  // Сообщения чата — в полноэкранном режиме новые показываются поверх видео
+  chatMessages: DisplayMessage[]
   reactions: Reaction[]
   readyUsers: string[]
   viewersCount: number
@@ -62,7 +66,7 @@ const ViewerEmptyState = ({ onOpenQueue }: { onOpenQueue: () => void }) => (
 
 export const VideoArea = (props: Props) => {
   const {
-    videoUrl, isPlaying, videoStarted, countdown, soundBlocked, isHost, reactions,
+    videoUrl, isPlaying, videoStarted, countdown, chatMessages, isHost, reactions,
     readyUsers, viewersCount, allReady, myUserId, onToggleReady, onStartWatching,
     draft, onDraftChange, onPlayNow, onAddToQueue, onOpenQueue,
     onYTReady, onYTDestroy, onYTStateChange,
@@ -77,8 +81,7 @@ export const VideoArea = (props: Props) => {
   const [controlsVisible, setControlsVisible] = useState(true)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Пока браузер держит видео без звука, панель не прячем — на ней кнопка «Включить звук»
-  const autoHide = fullscreen.active && isPlaying && !soundBlocked
+  const autoHide = fullscreen.active && isPlaying
 
   const showControls = useCallback(() => {
     setControlsVisible(true)
@@ -179,6 +182,12 @@ export const VideoArea = (props: Props) => {
           <div className="absolute inset-0" onPointerMove={showControls} onPointerDown={showControls} />
         )}
       </div>
+
+      {/* Новые сообщения чата — выше нашей панели и нижней строки плеера (время, прогресс); когда панель скрыта, опускаются ниже */}
+      {fullscreen.active && (
+        <ChatOverlay messages={chatMessages} myUserId={myUserId}
+          className={`absolute left-4 md:left-8 transition-[bottom] duration-300 ${controlsVisible ? 'bottom-44 sm:bottom-36' : 'bottom-6'}`} />
+      )}
 
       {/* Панель управления: в обычном режиме снизу, в полноэкранном — плавающий оверлей поверх видео со скрытием через 3 секунды */}
       <div

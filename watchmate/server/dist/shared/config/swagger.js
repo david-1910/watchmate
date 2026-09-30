@@ -174,7 +174,7 @@ const options = {
             },
         },
     },
-    // JSDoc-блоки @swagger в роутерах (.ts под ts-node, .js после сборки)
+    // JSDoc-блоки @swagger в роутерах (.ts под tsx в npm run dev, .js после сборки)
     apis: [path_1.default.join(__dirname, '../../modules/**/*.router.{ts,js}').replace(/\\/g, '/')],
 };
 exports.swaggerSpec = (0, swagger_jsdoc_1.default)(options);

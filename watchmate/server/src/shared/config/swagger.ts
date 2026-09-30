@@ -173,7 +173,7 @@ const options: swaggerJsdoc.Options = {
       },
     },
   },
-  // JSDoc-блоки @swagger в роутерах (.ts под ts-node, .js после сборки)
+  // JSDoc-блоки @swagger в роутерах (.ts под tsx в npm run dev, .js после сборки)
   apis: [path.join(__dirname, '../../modules/**/*.router.{ts,js}').replace(/\\/g, '/')],
 }
 

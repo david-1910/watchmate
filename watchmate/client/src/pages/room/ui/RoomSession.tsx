@@ -112,10 +112,9 @@ export const RoomSession = ({ roomId, onSessionEnded }: Props) => {
         <div className="flex-1 min-h-0 flex flex-col">
           <VideoArea
             videoUrl={player.videoUrl} isPlaying={player.isPlaying} videoStarted={player.videoStarted}
-            countdown={player.countdown} isHost={isHost} reactions={reactions}
+            countdown={player.countdown} chatMessages={chat.messages} isHost={isHost} reactions={reactions}
             readyUsers={readyUsers} viewersCount={viewersCount} allReady={allReady} myUserId={myUserId}
             onToggleReady={toggleReady} onStartWatching={startWatching}
-            muted={player.muted} soundBlocked={player.soundBlocked} onToggleMute={player.toggleMute}
             onRequestPlayback={sendRequest} requestPending={myRequest?.status === 'pending'}
             nextTitle={queue.queue[0]?.title ?? null} autoplay={queue.autoplay}
             onToggleAutoplay={queue.toggleAutoplay} onNext={queue.playNext} onCloseVideo={player.clearVideo}

@@ -207,6 +207,14 @@
 }
 
 
+/* Сообщение чата поверх видео: появилось — повисело — растаяло */
+@keyframes chat-overlay {
+  0% { opacity: 0; transform: translateY(6px); }
+  5% { opacity: 1; transform: translateY(0); }
+  85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 @keyframes float-up-left {
   0% {
     opacity: 1;

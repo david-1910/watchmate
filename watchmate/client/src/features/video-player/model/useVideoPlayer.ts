@@ -29,7 +29,6 @@ export const useVideoPlayer = (
   const [countdown, setCountdown] = useState<number | null>(null)
   // Браузер не дал играть со звуком — играем без звука, пока пользователь не нажмёт «Включить звук»
   const [soundBlocked, setSoundBlocked] = useState(false)
-  const [muted, setMuted] = useState(false)
 
   const mountedRef = useRef(true)
   const isHostRef = useRef(isHost)
@@ -39,6 +38,9 @@ export const useVideoPlayer = (
   const pendingPlaybackRef = useRef<PlaybackState | null>(null)
   const countdownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const autoplayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Позиция паузы для ещё не запущенного плеера: seek+pause на нём оставляет чёрный экран,
+  // поэтому переходим на неё при первом запуске
+  const resumeAtRef = useRef<number | null>(null)
   // Ожидаемое состояние по последней команде — чтобы после проверки автовоспроизведения встать на нужную позицию
   const expectedRef = useRef({ playing: false, time: 0, at: 0 })
 
@@ -69,7 +71,6 @@ export const useVideoPlayer = (
       yt.mute()
       yt.seekTo(expected.time + (Date.now() - expected.at) / 1000, true)
       yt.playVideo()
-      setMuted(true)
       setSoundBlocked(true)
     }, AUTOPLAY_CHECK_MS)
   }, [])
@@ -81,6 +82,12 @@ export const useVideoPlayer = (
       pendingPlaybackRef.current = { isPlaying: playing, currentTime }
       return
     }
+    const state = yt.getPlayerState()
+    if (!playing && (state === YT_STATE.UNSTARTED || state === YT_STATE.CUED)) {
+      resumeAtRef.current = currentTime
+      return
+    }
+    resumeAtRef.current = null
     if (Math.abs((yt.getCurrentTime?.() ?? 0) - currentTime) > SEEK_TOLERANCE_SEC) {
       yt.seekTo(currentTime, true)
     }
@@ -93,22 +100,25 @@ export const useVideoPlayer = (
   // Клик пользователя — после него браузер разрешает звук
   const enableSound = useCallback(() => {
     ytPlayerRef.current?.unMute()
-    setMuted(false)
     setSoundBlocked(false)
   }, [])
 
-  const toggleMute = useCallback(() => {
-    const yt = ytPlayerRef.current
-    if (!yt) return
-    if (yt.isMuted()) {
-      enableSound()
-    } else {
-      yt.mute()
-      setMuted(true)
+  // Звук включается сам при первом действии на странице (клик, касание, клавиша) —
+  // раньше браузер не разрешит, а отдельная кнопка «Включить звук» не нужна
+  useEffect(() => {
+    if (!soundBlocked) return
+    const options = { capture: true, once: true } as const
+    document.addEventListener('pointerdown', enableSound, options)
+    document.addEventListener('keydown', enableSound, options)
+    return () => {
+      document.removeEventListener('pointerdown', enableSound, options)
+      document.removeEventListener('keydown', enableSound, options)
     }
-  }, [enableSound])
+  }, [soundBlocked, enableSound])
+
 
   const onVideoUpdate = useCallback((url: string) => {
+    resumeAtRef.current = null
     videoUrlRef.current = url
     setVideoUrl(url)
     setIsPlaying(false)
@@ -167,7 +177,6 @@ export const useVideoPlayer = (
 
   const onYTReady = useCallback((player: YTPlayer) => {
     ytPlayerRef.current = player
-    setMuted(player.isMuted())
     if (pendingPlaybackRef.current) {
       applyPlayback(pendingPlaybackRef.current)
       pendingPlaybackRef.current = null
@@ -179,6 +188,14 @@ export const useVideoPlayer = (
   }, [])
 
   const onYTStateChange = useCallback((ytState: number, currentTime: number) => {
+    // Первый запуск после паузы на ещё не запущенном плеере — сначала встаём на позицию паузы.
+    // Рассылку пропускаем: после перемотки придёт PLAYING уже с правильным временем
+    if (ytState === YT_STATE.PLAYING && resumeAtRef.current !== null) {
+      const resumeAt = resumeAtRef.current
+      resumeAtRef.current = null
+      ytPlayerRef.current?.seekTo(resumeAt, true)
+      if (isHostRef.current) return
+    }
     if (!isHostRef.current) {
       // Зритель не управляет воспроизведением: заиграло при паузе хоста (медиаклавиша, пробел в iframe) — снова пауза
       if (ytState === YT_STATE.PLAYING && !expectedRef.current.playing) ytPlayerRef.current?.pauseVideo()
@@ -209,7 +226,6 @@ export const useVideoPlayer = (
 
   return {
     videoUrl, isPlaying, videoStarted, countdown, soundBlocked, enableSound,
-    muted, toggleMute,
     shareVideo, clearVideo, syncPlayback,
     onYTReady, onYTDestroy, onYTStateChange,
   }

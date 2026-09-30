@@ -20,7 +20,7 @@ npm run format     # Prettier (src/**/*.{ts,tsx})
 
 ### Server (run from `server/`)
 ```bash
-npm run dev        # ts-node src/index.ts (port 3001, no watch/reload)
+npm run dev        # tsx watch src/index.ts (port 3001, restarts on every file change)
 npm run build      # tsc → dist/
 npm start          # node dist/index.js
 ```

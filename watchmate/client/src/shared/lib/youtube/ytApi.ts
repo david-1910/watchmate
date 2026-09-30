@@ -12,7 +12,8 @@ export type YTPlayer = {
   destroy(): void
 }
 
-export const YT_STATE = { ENDED: 0, PLAYING: 1, PAUSED: 2, BUFFERING: 3 } as const
+// UNSTARTED — плеер ещё ни разу не запускался, CUED — видео загружено, но не начато
+export const YT_STATE = { UNSTARTED: -1, ENDED: 0, PLAYING: 1, PAUSED: 2, BUFFERING: 3, CUED: 5 } as const
 
 declare global {
   interface Window {

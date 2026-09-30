@@ -15,3 +15,4 @@ export const ReactionBar = ({ onSend }: Props) => (
     ))}
   </div>
 )
+

@@ -111,3 +111,4 @@ export const useFullscreen = <T extends HTMLElement>() => {
 
   return { ref, active, supported, toggle }
 }
+

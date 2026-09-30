@@ -69,9 +69,14 @@ export const VideoArea = (props: Props) => {
   const fullscreen = useFullscreen<HTMLDivElement>()
 
   return (
+<<<<<<< HEAD
     // В полный экран уходит видео вместе с панелью — иначе на телефоне нечем выйти (нет Esc)
     <div ref={fullscreen.ref} className={`h-full flex flex-col min-h-0 gap-2 ${fullscreen.active ? 'bg-black p-2' : ''}`}>
       <div
+=======
+    <div className="h-full flex flex-col min-h-0 gap-2">
+      <div ref={fullscreen.ref}
+>>>>>>> 75d61a1b01b63716100cf7cfc41b468a6aaf49b4
         className="glass-card rounded-2xl flex-1 min-h-0 flex flex-col items-center justify-center relative isolate overflow-hidden">
         {/* Слои карточки идут по порядку в DOM (без z-index): плеер → щит → реакции → звук → готовность → отсчёт */}
         {source ? (

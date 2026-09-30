@@ -60,6 +60,7 @@ const ViewerControls = (p: ControlBarProps) => (
   </>
 )
 
+<<<<<<< HEAD
 type FullscreenButtonProps = { active: boolean; onToggle: () => void; className?: string }
 
 const FullscreenButton = ({ active, onToggle, className = '' }: FullscreenButtonProps) => {
@@ -93,6 +94,27 @@ export const ControlBar = (props: ControlBarProps) => {
         <ReactionBar onSend={onSendReaction} />
         {showFullscreen && (
           <FullscreenButton active={fullscreenActive} onToggle={onToggleFullscreen} className="hidden sm:inline-flex" />
+=======
+// Панель под видео: ничего не перекрывает в плеере
+export const ControlBar = (props: ControlBarProps) => {
+  const { isHost, hasVideo, fullscreenSupported, fullscreenActive, onToggleFullscreen, onSendReaction } = props
+  const FullscreenIcon = fullscreenActive ? Minimize : Maximize
+
+  return (
+    <div className="glass rounded-2xl px-2 py-1.5 flex flex-wrap items-center gap-2 shrink-0">
+      {hasVideo && (
+        <div className="flex flex-wrap items-center gap-2">
+          {isHost ? <HostControls {...props} /> : <ViewerControls {...props} />}
+        </div>
+      )}
+      <div className="flex items-center gap-1 ml-auto min-w-0">
+        <ReactionBar onSend={onSendReaction} />
+        {hasVideo && fullscreenSupported && (
+          <button onClick={onToggleFullscreen} title={fullscreenActive ? 'Выйти из полноэкранного режима' : 'На весь экран'}
+            className="shrink-0 w-9 h-9 rounded-xl glass hover:bg-white/10 inline-flex items-center justify-center text-gray-200">
+            <FullscreenIcon className="w-4 h-4" />
+          </button>
+>>>>>>> 75d61a1b01b63716100cf7cfc41b468a6aaf49b4
         )}
       </div>
     </div>

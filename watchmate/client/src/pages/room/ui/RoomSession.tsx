@@ -10,6 +10,7 @@ import { useReadySystem } from '@/features/ready-system'
 import {
   usePlaybackRequests,
   PlaybackRequestToasts,
+  RequestAnswerToast,
   type PlaybackRequest,
 } from '@/features/playback-requests'
 import { useRoomCode } from '@/features/room-code'
@@ -47,7 +48,7 @@ export const RoomSession = ({ roomId, onSessionEnded }: Props) => {
   const { reactions, sendReaction } = useReactions()
   const queue = useQueue(roomId, snapshot)
   const player = useVideoPlayer(roomId, isHost, snapshot, { onEnded: queue.handleVideoEnded })
-  const { requests, sendRequest, dismissRequest } = usePlaybackRequests(isHost)
+  const { requests, answerRequest, myRequest, sendRequest } = usePlaybackRequests(isHost)
   const { suggestions, suggestVideo, acceptSuggestion, rejectSuggestion } = useSuggestions(roomId, snapshot)
   const { readyUsers, allReady, toggleReady, startWatching } = useReadySystem(roomId, snapshot)
   const viewersCount = users.filter((u) => u.online && u.userId !== hostId).length
@@ -76,7 +77,7 @@ export const RoomSession = ({ roomId, onSessionEnded }: Props) => {
     if (req.type === 'pause') player.syncPlayback(false)
     else if (req.type === 'play') player.syncPlayback(true)
     else if (req.type === 'change-video' && req.videoUrl) player.shareVideo(req.videoUrl)
-    dismissRequest(req.id)
+    answerRequest(req.id, true)
   }
 
   const panelContent = isHost ? (
@@ -96,7 +97,8 @@ export const RoomSession = ({ roomId, onSessionEnded }: Props) => {
   return (
     <div className="h-[100dvh] bg-app text-white flex flex-col overflow-hidden p-3 md:p-5 gap-3">
       {!connected && <ReconnectBanner />}
-      {isHost && <PlaybackRequestToasts requests={requests} onApprove={approveRequest} onDismiss={dismissRequest} />}
+      {isHost && <PlaybackRequestToasts requests={requests} onApprove={approveRequest} onDismiss={(id) => answerRequest(id, false)} />}
+      {!isHost && <RequestAnswerToast request={myRequest} />}
 
       <RoomHeader
         roomId={roomId} joinCode={joinCode} users={users} hostId={hostId} isHost={isHost}
@@ -114,7 +116,7 @@ export const RoomSession = ({ roomId, onSessionEnded }: Props) => {
             readyUsers={readyUsers} viewersCount={viewersCount} allReady={allReady} myUserId={myUserId}
             onToggleReady={toggleReady} onStartWatching={startWatching}
             muted={player.muted} soundBlocked={player.soundBlocked} onToggleMute={player.toggleMute}
-            onRequestPlayback={sendRequest}
+            onRequestPlayback={sendRequest} requestPending={myRequest?.status === 'pending'}
             nextTitle={queue.queue[0]?.title ?? null} autoplay={queue.autoplay}
             onToggleAutoplay={queue.toggleAutoplay} onNext={queue.playNext} onCloseVideo={player.clearVideo}
             onSendReaction={sendReaction}

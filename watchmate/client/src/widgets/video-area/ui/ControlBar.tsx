@@ -13,6 +13,7 @@ export type ControlBarProps = {
   soundBlocked: boolean
   onToggleMute: () => void
   onRequestPlayback: (type: RequestType) => void
+  requestPending: boolean
   // Хост: очередь и видео
   nextTitle: string | null
   autoplay: boolean
@@ -53,7 +54,7 @@ const HostControls = ({ nextTitle, autoplay, onToggleAutoplay, onNext, onCloseVi
 const ViewerControls = (p: ControlBarProps) => (
   <>
     <SoundButton muted={p.muted} soundBlocked={p.soundBlocked} onToggle={p.onToggleMute} />
-    {p.videoStarted && <RequestPlaybackButton isPlaying={p.isPlaying} onRequest={p.onRequestPlayback} />}
+    {p.videoStarted && <RequestPlaybackButton isPlaying={p.isPlaying} pending={p.requestPending} onRequest={p.onRequestPlayback} />}
   </>
 )
 

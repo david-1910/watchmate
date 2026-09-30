@@ -178,7 +178,8 @@ io(SOCKET_URL, { auth: (cb) => cb({ roomId, memberToken }) })
 |---|---|---|---|
 | `playback-sync` | `{ isPlaying: boolean, currentTime: number }` | host | Store the playback state, then relay `playback-update` to the others |
 | `reaction` | `{ emoji: string }` (≤ 8 chars) | member | Broadcast `reaction` |
-| `playback-request` | `{ type: 'pause' \| 'play' \| 'change-video', videoUrl?: string }` | non-host | Send `playback-request-notify` to the host's sockets only |
+| `playback-request` | `{ type: 'pause' \| 'play' \| 'change-video', videoUrl?: string }` | non-host | Store the request as pending, then send `playback-request-notify` to the host's sockets only |
+| `playback-request-answer` | `{ requestId: string, accepted: boolean }` | host | Close the pending request, then send `playback-request-answered` to the requester's sockets only. Unknown or already answered ids are ignored. Pending requests are dropped when the room is deleted. |
 
 ### Server → client
 | Event | Payload |
@@ -190,6 +191,7 @@ io(SOCKET_URL, { auth: (cb) => cb({ roomId, memberToken }) })
 | `video-update` | `string` (`''` = cleared) |
 | `playback-update` | `PlaybackState` |
 | `playback-request-notify` | `{ id, fromUserId, fromUserName, type, videoUrl? }` |
+| `playback-request-answered` | `{ requestId, type, accepted }`. Sent to the requester. The host sends `accepted: true` after performing the action, and `false` on "Decline" or when it closes the toast. |
 | `ready-update` | `ReadyState` |
 | `countdown` | `number` |
 | `queue-update` | `QueueItem[]` |

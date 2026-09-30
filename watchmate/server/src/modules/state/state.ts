@@ -1,4 +1,4 @@
-import { Room, Member, QueueItem, Suggestion, ChatLog, StoredPlayback } from '../../shared/types'
+import { Room, Member, QueueItem, Suggestion, ChatLog, StoredPlayback, PendingRequest } from '../../shared/types'
 
 type MemberRef = { roomId: string; userId: string }
 
@@ -10,6 +10,8 @@ const roomHosts = new Map<string, string>()
 const readyUsers = new Map<string, Set<string>>()
 const activeCountdowns = new Set<string>()
 const roomQueues = new Map<string, QueueItem[]>()
+// roomId → (requestId → запрос зрителя, ждущий ответа хоста)
+const roomRequests = new Map<string, Map<string, PendingRequest>>()
 const roomSuggestions = new Map<string, Suggestion[]>()
 const roomMessages = new Map<string, ChatLog>()
 const roomCurrentVideo = new Map<string, string>()
@@ -52,6 +54,7 @@ const deleteRoom = (roomId: string): void => {
   roomMessages.delete(roomId)
   roomCurrentVideo.delete(roomId)
   roomPlayback.delete(roomId)
+  roomRequests.delete(roomId)
 }
 
 export const state = {
@@ -66,6 +69,7 @@ export const state = {
   roomMessages,
   roomCurrentVideo,
   roomPlayback,
+  roomRequests,
   getMembers,
   getOnlineMembers,
   getMember,

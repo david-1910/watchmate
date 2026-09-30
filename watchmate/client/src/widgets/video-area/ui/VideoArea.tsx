@@ -123,7 +123,7 @@ export const VideoArea = (props: Props) => {
       onClick={showControls}
       className={
         fullscreen.active
-          ? `fixed inset-0 z-50 bg-black w-screen h-screen overflow-hidden relative flex flex-col items-center justify-center ${
+          ? `fixed inset-0 bg-black w-screen h-screen overflow-hidden relative flex flex-col items-center justify-center ${
               !controlsVisible ? 'cursor-none' : ''
             }`
           : 'h-full flex flex-col min-h-0 gap-2 relative'
@@ -172,13 +172,19 @@ export const VideoArea = (props: Props) => {
         )}
 
         {countdown !== null && <CountdownOverlay count={countdown} />}
+
+        {/* Панель скрыта: движения над плеером уходят в iframe и страница их не видит.
+            Прозрачный слой ловит первое движение/касание и возвращает панель */}
+        {fullscreen.active && !controlsVisible && (
+          <div className="absolute inset-0" onPointerMove={showControls} onPointerDown={showControls} />
+        )}
       </div>
 
       {/* Панель управления: в обычном режиме снизу, в полноэкранном — плавающий оверлей поверх видео со скрытием через 3 секунды */}
       <div
         className={
           fullscreen.active
-            ? `absolute bottom-3 inset-x-3 md:bottom-5 md:inset-x-8 z-30 max-w-5xl mx-auto flex justify-center w-[calc(100%-1.5rem)] md:w-[calc(100%-3rem)] transition-all duration-300 ${
+            ? `absolute bottom-3 inset-x-3 md:bottom-5 md:inset-x-8 max-w-5xl mx-auto flex justify-center w-[calc(100%-1.5rem)] md:w-[calc(100%-3rem)] transition-all duration-300 ${
                 controlsVisible ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-4 pointer-events-none'
               }`
             : 'shrink-0'

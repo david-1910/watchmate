@@ -9,6 +9,8 @@ const roomHosts = new Map();
 const readyUsers = new Map();
 const activeCountdowns = new Set();
 const roomQueues = new Map();
+// roomId → (requestId → запрос зрителя, ждущий ответа хоста)
+const roomRequests = new Map();
 const roomSuggestions = new Map();
 const roomMessages = new Map();
 const roomCurrentVideo = new Map();
@@ -46,6 +48,7 @@ const deleteRoom = (roomId) => {
     roomMessages.delete(roomId);
     roomCurrentVideo.delete(roomId);
     roomPlayback.delete(roomId);
+    roomRequests.delete(roomId);
 };
 exports.state = {
     rooms,
@@ -59,6 +62,7 @@ exports.state = {
     roomMessages,
     roomCurrentVideo,
     roomPlayback,
+    roomRequests,
     getMembers,
     getOnlineMembers,
     getMember,

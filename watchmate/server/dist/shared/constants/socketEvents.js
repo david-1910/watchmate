@@ -7,6 +7,7 @@ exports.SOCKET_EVENTS = {
     PLAYBACK_SYNC: 'playback-sync',
     REACTION: 'reaction',
     PLAYBACK_REQUEST: 'playback-request',
+    PLAYBACK_REQUEST_ANSWER: 'playback-request-answer',
     // Server → Client (REACTION тоже рассылается клиентам)
     USERS_UPDATE: 'users-update',
     HOST_UPDATE: 'host-update',
@@ -15,6 +16,7 @@ exports.SOCKET_EVENTS = {
     VIDEO_UPDATE: 'video-update',
     PLAYBACK_UPDATE: 'playback-update',
     PLAYBACK_REQUEST_NOTIFY: 'playback-request-notify',
+    PLAYBACK_REQUEST_ANSWERED: 'playback-request-answered',
     READY_UPDATE: 'ready-update',
     COUNTDOWN: 'countdown',
     QUEUE_UPDATE: 'queue-update',

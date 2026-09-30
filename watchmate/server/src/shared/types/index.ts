@@ -76,6 +76,11 @@ export type Member = {
 
 export type StoredPlayback = PlaybackState & { updatedAt: number }
 
+export type PlaybackRequestType = 'pause' | 'play' | 'change-video'
+
+// Запрос зрителя, ожидающий ответа хоста
+export type PendingRequest = { fromUserId: string; type: PlaybackRequestType }
+
 export type ChatLog = {
   messages: ChatMessage[]
   lastSeq: number

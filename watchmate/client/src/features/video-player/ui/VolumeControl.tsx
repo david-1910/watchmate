@@ -25,3 +25,4 @@ export const VolumeControl = ({ volume, onVolumeChange }: Props) => {
     </div>
   )
 }
+

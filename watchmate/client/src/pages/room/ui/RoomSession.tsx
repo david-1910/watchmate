@@ -157,4 +157,3 @@ export const RoomSession = ({ roomId, onSessionEnded }: Props) => {
     </div>
   )
 }
-

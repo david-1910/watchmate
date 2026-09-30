@@ -28,7 +28,7 @@ type Props = Omit<ControlBarProps, 'hasVideo' | 'fullscreenSupported' | 'fullscr
   onYTStateChange: (state: number, currentTime: number) => void
 }
 
-const HIDE_CONTROLS_DELAY_MS = 3500
+const HIDE_CONTROLS_DELAY_MS = 3000
 
 const HostEmptyState = ({ draft, onDraftChange, onPlayNow, onAddToQueue }: Pick<Props, 'draft' | 'onDraftChange' | 'onPlayNow' | 'onAddToQueue'>) => (
   <div className="flex flex-col items-center gap-4 p-6 w-full max-w-xl">
@@ -73,7 +73,7 @@ export const VideoArea = (props: Props) => {
   // Предотвращаем уход телефона в спящий режим во время проигрывания
   useWakeLock(isPlaying)
 
-  // В полноэкранном режиме панель управления скрывается при бездействии и появляется при касании/движении мыши
+  // В полноэкранном режиме панель управления скрывается через 3 секунды бездействия
   const [controlsVisible, setControlsVisible] = useState(true)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -92,10 +92,22 @@ export const VideoArea = (props: Props) => {
     if (!fullscreen.active || !isPlaying) {
       setControlsVisible(true)
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
-    } else {
-      showControls()
+      return
     }
+
+    showControls()
+
+    const onUserActivity = () => showControls()
+    window.addEventListener('pointermove', onUserActivity)
+    window.addEventListener('pointerdown', onUserActivity)
+    window.addEventListener('touchstart', onUserActivity, { passive: true })
+    window.addEventListener('keydown', onUserActivity)
+
     return () => {
+      window.removeEventListener('pointermove', onUserActivity)
+      window.removeEventListener('pointerdown', onUserActivity)
+      window.removeEventListener('touchstart', onUserActivity)
+      window.removeEventListener('keydown', onUserActivity)
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
     }
   }, [fullscreen.active, isPlaying, showControls])
@@ -159,7 +171,7 @@ export const VideoArea = (props: Props) => {
         {countdown !== null && <CountdownOverlay count={countdown} />}
       </div>
 
-      {/* Панель управления: в обычном режиме снизу, в полноэкранном — плавающий оверлей поверх видео */}
+      {/* Панель управления: в обычном режиме снизу, в полноэкранном — плавающий оверлей поверх видео со скрытием через 3 секунды */}
       <div
         className={
           fullscreen.active
